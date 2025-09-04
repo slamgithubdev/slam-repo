@@ -1,4 +1,3 @@
-# Auto-generated schema file for debt tables
 TABLE_SCHEMAS = {
     "contract": {
         "cont_id": "STRING",
@@ -120,7 +119,7 @@ TABLE_SCHEMAS = {
     },
     "person": {
         "pers_id": "STRING",
-        "external_codes": "ARRAY<STRING>",  # changed from RECORD to ARRAY<STRING>
+        "external_codes": "ARRAY<STRING>",
         "registered_date_of_death": "DATE",
         "tenant_code": "STRING",
         "created_by": "STRING",

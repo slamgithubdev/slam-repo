@@ -1,4 +1,3 @@
-# Auto-generated schema file for loan tables updated for int32 and extra columns per logs
 TABLE_SCHEMAS = {
     "action_history": {
         "achi_id": "STRING",
@@ -332,9 +331,9 @@ TABLE_SCHEMAS = {
         "caev_id": "STRING",
         "item_type_code": "STRING",
         "receivable_event_type_code": "STRING",
-        "amt_dir_code": "STRING",  # added from extra columns in log
-        "balance_dir_code": "STRING",  # added from extra columns in log
-        "debt_dir_code": "STRING",  # added from extra columns in log
+        "amt_dir_code": "STRING",
+        "balance_dir_code": "STRING",
+        "debt_dir_code": "STRING",
         "amt": "DECIMAL(38, 18)",
         "ccy": "STRING",
         "posting_date": "DATE",

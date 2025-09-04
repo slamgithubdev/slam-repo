@@ -1,4 +1,3 @@
-# Auto-generated schema file for finance tables
 TABLE_SCHEMAS = {
     "account_component_rule": {
         "accr_id": "STRING",
