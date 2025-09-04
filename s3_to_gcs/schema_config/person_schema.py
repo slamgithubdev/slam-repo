@@ -1,4 +1,4 @@
-# Auto-generated schema file for person tables
+# Auto-generated schema file for person tables (updated with type fixes)
 TABLE_SCHEMAS = {
     "address": {
         "addr_id": "STRING",
@@ -25,7 +25,7 @@ TABLE_SCHEMAS = {
         "field_id": "STRING",
         "reporting_banking_date": "DATE",
         "value_type": "STRING",
-        "value_number": "NUMERIC",
+        "value_number": "DECIMAL(38, 18)",  # updated from DOUBLE
         "value_text": "STRING",
         "value_date": "DATE",
         "value_datetime": "TIMESTAMP",
@@ -40,7 +40,7 @@ TABLE_SCHEMAS = {
         "inserted_dtime": "TIMESTAMP",
         "updated_by": "STRING",
         "message_dtime": "TIMESTAMP",
-        "value_text_array": "RECORD",
+        "value_text_array": "ARRAY<STRING>",
     },
     "document": {
         "docu_id": "STRING",
@@ -62,10 +62,10 @@ TABLE_SCHEMAS = {
         "pers_id": "STRING",
         "financial_data_type": "STRING",
         "financial_data_value_type": "STRING",
-        "current_period_value": "NUMERIC",
+        "current_period_value": "DECIMAL(38, 18)",  # updated from DOUBLE
         "ccy": "STRING",
-        "period": "INT64",
-        "next_period_estimate_value": "NUMERIC",
+        "period": "INT32",  # updated from INT64
+        "next_period_estimate_value": "DECIMAL(38, 18)",  # updated from DOUBLE
         "description": "STRING",
         "validity_range": "STRING",
         "updated_dtime": "TIMESTAMP",

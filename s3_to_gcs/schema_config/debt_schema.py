@@ -40,7 +40,7 @@ TABLE_SCHEMAS = {
     "contract_notification": {
         "even_id": "STRING",
         "cont_id": "STRING",
-        "invo_ids": "RECORD",
+        "invo_ids": "ARRAY<STRING>",
         "notification_type_code": "STRING",
         "due_date": "DATE",
         "reporting_banking_date": "DATE",
@@ -120,7 +120,7 @@ TABLE_SCHEMAS = {
     },
     "person": {
         "pers_id": "STRING",
-        "external_codes": "RECORD",
+        "external_codes": "ARRAY<STRING>",  # changed from RECORD to ARRAY<STRING>
         "registered_date_of_death": "DATE",
         "tenant_code": "STRING",
         "created_by": "STRING",
