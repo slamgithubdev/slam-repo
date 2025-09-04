@@ -29,6 +29,20 @@ SCHEMAS_BY_DOMAIN = {
 
 
 def to_pyarrow_type(bq_type: str) -> pa.DataType:
+    """
+    Convert a BigQuery-style type string to the corresponding PyArrow data type.
+
+    Supports primitive types, arrays, decimals with precision/scale, and special cases.
+
+    Args:
+        bq_type (str): Data type string, e.g. "STRING", "INT64", "ARRAY<STRING>", "DECIMAL(10,2)"
+
+    Returns:
+        pa.DataType: Corresponding PyArrow data type object.
+
+    Raises:
+        ValueError: If the input type string is unsupported.
+    """
     if bq_type.startswith("ARRAY<") and bq_type.endswith(">"):
         inner_type_str = bq_type[6:-1]
         inner_type = to_pyarrow_type(inner_type_str)
@@ -57,6 +71,15 @@ def to_pyarrow_type(bq_type: str) -> pa.DataType:
 
 
 def to_pyarrow_schema(schema_dict: Dict[str, str]) -> pa.Schema:
+    """
+    Convert a dictionary of column name to BigQuery-type strings into a PyArrow schema.
+
+    Args:
+        schema_dict (Dict[str, str]): Mapping of column names to type strings.
+
+    Returns:
+        pa.Schema: PyArrow schema object representing all columns.
+    """
     fields = [
         pa.field(col, to_pyarrow_type(dtype)) for col, dtype in schema_dict.items()
     ]
@@ -64,6 +87,14 @@ def to_pyarrow_schema(schema_dict: Dict[str, str]) -> pa.Schema:
 
 
 def assume_role_aws() -> dict:
+    """
+    Assume an AWS IAM role to get temporary security credentials.
+
+    Uses boto3 STS client to request credentials for the configured role ARN.
+
+    Returns:
+        dict: Dictionary containing aws_access_key_id, aws_secret_access_key, aws_session_token.
+    """
     sts_client = boto3.client("sts")
     assumed_role = sts_client.assume_role(
         RoleArn=AWS_ROLE_ARN,
@@ -78,6 +109,15 @@ def assume_role_aws() -> dict:
 
 
 def get_s3_client(aws_creds):
+    """
+    Create a boto3 S3 client configured with provided AWS temporary credentials.
+
+    Args:
+        aws_creds (dict): AWS credentials with keys 'aws_access_key_id', 'aws_secret_access_key', 'aws_session_token'.
+
+    Returns:
+        boto3.client: Configured S3 client instance.
+    """
     return boto3.client(
         "s3",
         aws_access_key_id=aws_creds["aws_access_key_id"],
@@ -87,6 +127,17 @@ def get_s3_client(aws_creds):
 
 
 def extract_domain_and_table(s3_key: str) -> Tuple[str, str]:
+    """
+    Parse an S3 object key to extract the domain and table names.
+
+    Assumes the key format includes a folder name like 'reports_db_<domain>.<table>'.
+
+    Args:
+        s3_key (str): The S3 object key path.
+
+    Returns:
+        Tuple[str, str]: Domain name and table name extracted from the key.
+    """
     parts = s3_key.split("/")
     folder_name = parts[3]
     domain_table = folder_name[len("reports_db_") :]
@@ -95,6 +146,19 @@ def extract_domain_and_table(s3_key: str) -> Tuple[str, str]:
 
 
 def list_s3_parquet_files(s3_client, bucket: str, prefix: str) -> List[str]:
+    """
+    List all parquet file keys under a given bucket and prefix in S3.
+
+    Uses S3 paginator to handle potentially many objects.
+
+    Args:
+        s3_client (boto3.client): Authenticated S3 client.
+        bucket (str): S3 bucket name.
+        prefix (str): Prefix path within the bucket to list under.
+
+    Returns:
+        List[str]: List of parquet file keys (paths).
+    """
     paginator = s3_client.get_paginator("list_objects_v2")
     pages = paginator.paginate(Bucket=bucket, Prefix=prefix, RequestPayer="requester")
     files = []
@@ -107,6 +171,17 @@ def list_s3_parquet_files(s3_client, bucket: str, prefix: str) -> List[str]:
 
 
 def read_s3_file(s3_client, bucket: str, key: str) -> pa.Table:
+    """
+    Read a parquet file from S3 into a PyArrow Table.
+
+    Args:
+        s3_client (boto3.client): Authenticated S3 client.
+        bucket (str): S3 bucket name.
+        key (str): S3 object key for the parquet file.
+
+    Returns:
+        pa.Table: PyArrow table representation of the parquet data.
+    """
     obj = s3_client.get_object(Bucket=bucket, Key=key, RequestPayer="requester")
     buffer = obj["Body"].read()
     return pq.read_table(pa.BufferReader(buffer))
@@ -115,6 +190,18 @@ def read_s3_file(s3_client, bucket: str, key: str) -> pa.Table:
 def build_columns_hint(
     table_name: str, domain_schemas: Dict[str, Dict[str, str]]
 ) -> dict:
+    """
+    Generate column type hints suitable for the dlt pipeline from the domain schema for a given table.
+
+    Maps BigQuery-like types to dlt supported data types and handles arrays as JSON.
+
+    Args:
+        table_name (str): Name of the table.
+        domain_schemas (Dict[str, Dict[str, str]]): Mapping of all tables to their column schemas.
+
+    Returns:
+        dict: Mapping of column names to dictionaries with "data_type" keys for dlt hints.
+    """
     schema = domain_schemas.get(table_name, {})
     bq_to_dlt = {
         "STRING": "text",
@@ -146,6 +233,18 @@ def make_resource(
     domain_schemas: Dict[str, Dict[str, str]],
     primary_key: List[str] = None,
 ) -> Callable[[], Iterator[dict]]:
+    """
+    Create a dlt resource generator function yielding rows from data with column hints.
+
+    Args:
+        data (List[dict]): List of records (row dictionaries) to be yielded by the resource.
+        name (str): Name of the resource (usually the table name).
+        domain_schemas (Dict[str, Dict[str, str]]): Mapping of table schemas for column hints.
+        primary_key (List[str], optional): List of primary key column names for applying hints.
+
+    Returns:
+        Callable[[], Iterator[dict]]: A generator function decorated as a dlt resource.
+    """
     columns_hint = build_columns_hint(name, domain_schemas)
 
     @dlt.resource(name=name, columns=columns_hint)
@@ -161,6 +260,17 @@ def make_resource(
 def log_schema_differences(
     expected_schema: pa.Schema, actual_schema: pa.Schema, table_name: str, file_key: str
 ):
+    """
+    Log differences between expected PyArrow schema and actual schema from parquet file.
+
+    Logs missing columns, extra columns, and type mismatches with details.
+
+    Args:
+        expected_schema (pa.Schema): Expected schema to validate against.
+        actual_schema (pa.Schema): Schema read from the parquet file.
+        table_name (str): Name of the table the file belongs to.
+        file_key (str): S3 key of the file being validated.
+    """
     expected_fields = {field.name: field for field in expected_schema}
     actual_fields = {field.name: field for field in actual_schema}
     missing_cols = [col for col in expected_fields if col not in actual_fields]
