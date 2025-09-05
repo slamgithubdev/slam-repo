@@ -10,10 +10,3 @@ requester_pays = true
 [destination.filesystem]
 bucket_url = "gs://daneshp-sandbox-delphi-data"
 prefix = "2025/08/14/"
-
-[state.gcs]
-bucket = "daneshp-sandbox-delphi-data"
-prefix = "dlt_state"
-
-[storage]
-path = "gs://daneshp-sandbox-delphi-data/dlt_pipeline_state/"
