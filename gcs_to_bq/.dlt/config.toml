@@ -1,0 +1,19 @@
+# put your configuration values here
+
+[runtime]
+log_level="WARNING"  # the system log level of dlt
+# use the dlthub_telemetry setting to enable/disable anonymous usage data reporting, see https://dlthub.com/docs/reference/telemetry
+dlthub_telemetry = true
+
+[sources.gcs_parquet_source.filesystem]
+bucket_url = "gs://daneshp-sandbox-delphi-data"
+file_glob = "s3_to_gcs_debt_v11_dataset/**/*.parquet"
+
+
+
+[schema]
+allow_identifier_change_on_table_with_data = true
+naming = "direct"
+
+[extra]
+project_id = "daneshp-sandbox"

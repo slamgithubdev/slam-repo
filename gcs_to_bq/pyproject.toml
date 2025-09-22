@@ -1,0 +1,18 @@
+[project]
+name = "gcs_to_bq"
+version = "0.1.0"
+description = "Contains all the assets necessary for the tuum data pipeline from GCS to BigQuery"
+requires-python = ">=3.13"
+dependencies = [
+    "dlt[bigquery,gs,parquet,filesystem]>=1.14.1",
+    "sqlalchemy>=2.0.41",
+    "pyodbc>=5.2.0",
+    "pyarrow>=21.0.0",
+    "python-dotenv>=1.1.1",
+    "google-cloud-bigquery>=3.35.0",
+    "chardet>=5.2.0",
+    "openpyxl>=3.0.0",
+    "google-cloud-bigquery-storage>=2.32.0",
+    "pandas>=2.3.1",
+    "numpy>=2.3.2",
+]

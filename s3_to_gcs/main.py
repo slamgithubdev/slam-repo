@@ -325,7 +325,7 @@ def main():
         logger.info(f"Processing domain: {domain}")
         schemas = SCHEMAS_BY_DOMAIN[domain]
         pipeline = dlt.pipeline(
-            pipeline_name=f"s3_to_gcs_{domain}_v11",
+            pipeline_name=f"raw_{domain}",
             destination="filesystem",
         )
         resources = []

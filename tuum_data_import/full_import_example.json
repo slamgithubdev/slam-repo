@@ -1,0 +1,347 @@
+{
+  "source": {
+    "sourceName": "MY-SOURCE-SYSTEM",
+    "sourceRef": "TEST-IMPORT-001"
+  },
+  "persons": [
+    {
+      "externalPersonId": "EXT-P-1000",
+      "source": {
+        "sourceName": "MY-CUSTOMER-DB",
+        "sourceRef": "ID1000"
+      },
+      "personTypeCode": "P",
+      "givenName": "Peter",
+      "middleName": "Alexander",
+      "surname": "Schmidt",
+      "name": "string",
+      "statusCode": "ACTIVE",
+      "birthDate": "1980-12-01",
+      "email": "psmidt@smidt.de",
+      "phoneNumber": "0901820",
+      "phoneNumberCountryCode": "+49",
+      "sex": "M",
+      "nationality": "DE",
+      "dependantPersons": 1,
+      "educationCode": "HIGHER_EDUCATION",
+      "activityCode": "SPECIALIST",
+      "housingTypeCode": "PRIVATE",
+      "buildingTypeCode": "APARTMENT",
+      "businessAreaCodes": [
+        "A"
+      ],
+      "counterpartySectorCode": "HOUSEHOLDS",
+      "maritalStatusCode": "MARRIED",
+      "employmentTimeCode": "MORE_4_YEAR",
+      "customerTypeCode": "string",
+      "placeOfBirth": "Berlin",
+      "countryOfBirth": "DE",
+      "residencyCountryCode": "DE",
+      "language": "DE",
+      "taxResidencyCountryCode": "DE",
+      "fixedEmploymentLength": 6,
+      "identificationNumbers": [
+        {
+          "idNumber": "12123456A123",
+          "idCountryCode": "DE",
+          "primary": true,
+          "validityRange": {
+            "startTime": "2025-09-17T10:27:31.023Z",
+            "endTime": "2025-09-17T10:27:31.023Z"
+          }
+        }
+      ],
+      "taxNumbers": [
+        {
+          "taxNumber": "12123456A123",
+          "taxNumberTypeCode": "NATIONAL_INSURANCE_NUMBER",
+          "taxCountryCode": "DE",
+          "primary": true,
+          "validityRange": {
+            "startTime": "2025-09-17T10:27:31.023Z",
+            "endTime": "2025-09-17T10:27:31.023Z"
+          }
+        }
+      ],
+      "pep": false,
+      "pepExplanation": "Politically exposed due to government position",
+      "usResident": false,
+      "tenantCode": "MB",
+      "addresses": [
+        {
+          "addressTypeCode": "R",
+          "street1": "Fennstrasse 4",
+          "street2": "string",
+          "cityCounty": "Berlin",
+          "stateRegion": "Berlin",
+          "zip": "13347",
+          "countryCode": "DE",
+          "moveInDate": "2018-06-23",
+          "validityRange": {
+            "startTime": "2025-09-17T10:27:31.023Z",
+            "endTime": "2025-09-17T10:27:31.023Z"
+          }
+        }
+      ],
+      "relationships": null,
+      "document": {
+        "documentTypeCode": "PASSPORT",
+        "issuingCountryCode": "DE",
+        "number": "0124R5M1P5",
+        "expiryDate": "2055-01-03",
+        "validityRange": {
+          "startTime": "2025-09-17T10:27:31.023Z",
+          "endTime": "2025-09-17T10:27:31.023Z"
+        }
+      },
+      "additionalContacts": [
+        {
+          "contactTypeCode": "FRAUD_CONTACT",
+          "description": "Contacts for fraud department",
+          "email": "psmidt@smidt.de",
+          "phoneNumber": "0901820",
+          "phoneCountryCode": "+49",
+          "preferredMethodOfContact": true,
+          "validityRange": {
+            "startTime": "2025-09-17T10:27:31.023Z",
+            "endTime": "2025-09-17T10:27:31.023Z"
+          }
+        }
+      ],
+      "personGroupCodes": null,
+      "legalEntityIdentifier": null,
+      "risks": null,
+      "customFields": null
+    }
+  ],
+  "contracts": [
+    {
+      "externalPersonId": "EXT-P-1000",
+      "tuumPersonId": null,
+      "externalContractId": "EXT-C-1000",
+      "source": {
+        "sourceName": "MY-CONTRACT-DB",
+        "sourceRef": "ID1000"
+      },
+      "contractNumber": "900-100-1",
+      "loanTypeCode": "SECURED_LOAN_TEST",
+      "referenceNumber": null,
+      "preparationDate": "2023-03-18",
+      "signingDate": "2023-03-18",
+      "startDate": "2023-03-18",
+      "activationDate": "2023-03-18",
+      "endDate": "2053-04-18",
+      "stopDate": "2053-04-18",
+      "statusCode": "ACTIVE",
+      "period": 1,
+      "apr": 0,
+      "scheduleTypeCode": "ANNUITY",
+      "limitMoney": {
+        "amount": 1500,
+        "currencyCode": "EUR"
+      },
+      "contractFeeMoney": {
+        "amount": 1500,
+        "currencyCode": "EUR"
+      },
+      "contractMoney": {
+        "amount": 1500,
+        "currencyCode": "EUR"
+      },
+      "countryCode": "EE",
+      "tenantCode": "MB",
+      "solvencyLevelCode": "NORMAL_CREDIT",
+      "externalServicingAccountId": null,
+      "repayment": {
+        "paymentFreeMonths": null,
+        "monthlyRepaymentAmount": {
+          "amount": 1500,
+          "currencyCode": "EUR"
+        },
+        "monthlyRepaymentRate": null,
+        "maxInvoiceMoney": null,
+        "minInvoiceMoney": null,
+        "invoiceDay": null,
+        "paymentDay": 18,
+        "previousInvoiceDate": "2023-04-18"
+      },
+      "hasCollateral": true,
+      "initialLtv": 0,
+      "currentLtv": 0,
+      "limitUsageDate": "2025-09-17",
+      "penaltyGraceDays": 3,
+      "penaltyGraceMoney": null,
+      "repaymentChannelCode": null,
+      "contractConditions": null,
+      "components": [
+        {
+          "componentTypeCode": "PRI",
+          "paymentInterval": 1,
+          "balanceMoney": {
+            "amount": 1500,
+            "currencyCode": "EUR"
+          },
+          "invoicedBalanceMoney": {
+            "amount": 1500,
+            "currencyCode": "EUR"
+          }
+        },
+        {
+          "componentTypeCode": "ALIM",
+          "balanceMoney": {
+            "amount": 0,
+            "currencyCode": "EUR"
+          },
+          "invoicedBalanceMoney": {
+            "amount": 0,
+            "currencyCode": "EUR"
+          }
+        },
+        {
+          "componentTypeCode": "INT",
+          "paymentInterval": 1,
+          "balanceMoney": {
+            "amount": 0,
+            "currencyCode": "EUR"
+          },
+          "invoicedBalanceMoney": {
+            "amount": 0,
+            "currencyCode": "EUR"
+          },
+          "calculationMethod": {
+            "daysInMonth": "ACT",
+            "daysInYear": "365"
+          },
+          "rateTypeCode": "FLOATING",
+          "rateBaseCode": "BOFPR",
+          "rate": 14.52,
+          "marginRate": 10.77,
+          "baseRate": 3.75,
+          "nextBaseRateChangeDate": "2025-12-01",
+          "rateChangeDay": 1
+        }
+      ],
+      "coBorrowers": null,
+      "scheduleLines": [
+        {
+          "componentTypeCode": "PRI",
+          "paymentMoney": {
+            "amount": 1500,
+            "currencyCode": "EUR"
+          },
+          "paymentDate": "2053-04-18",
+          "processed": false
+        }
+      ],
+      "customFields": null
+    }
+  ],
+  "accounts": [
+    {
+      "externalPersonId": "EXT-P-1000",
+      "tuumPersonId": null,
+      "externalAccountId": "EXT-A-1000",
+      "statusCode": "ACTIVE",
+      "accountTypeCode": "CURRENCY",
+      "activationDate": "2023-04-18",
+      "externalMasterAccountId": "string",
+      "overdraftAmount": null,
+      "accountName": "Chungking express",
+      "personName": "Tony Leung",
+      "source": {
+        "sourceName": "MY-ACCOUNT-DB",
+        "sourceRef": "ID1000"
+      },
+      "residencyCountryCode": "DE",
+      "customerGroupCode": "GROUP_A",
+      "priceListTypeCode": "STANDARD",
+      "currencyCode": "EUR",
+      "accountInterestRate": 0,
+      "personTypeCode": "P",
+      "intraOrgCode": "MB",
+      "accountTypeSetupCode": "STANDARD",
+      "serviceProviderCode": "TUUM",
+      "interestMethodAssignmentCode": "DE",
+      "accountClassCode": "SAFEGUARDED",
+      "taxResidencyCountryCode": "DE",
+      "jurisdictionCountryCode": "DE",
+      "accountNumbers": [
+        {
+          "accountNumber": {
+            "value": "DE89370400440532013000",
+            "type": "IBAN"
+          },
+          "countryCode": "DE",
+          "financialInstitutionId": {
+            "value": "MAINDE2XXXX",
+            "type": "BIC"
+          },
+          "defaultCurrencyCode": "EUR"
+        }
+      ],
+      "limits": [
+        {
+          "amount": {
+            "amount": 1500,
+            "currencyCode": "EUR"
+          },
+          "accountLimitTypeCode": "DAILY"
+        },
+        {
+          "amount": {
+            "amount": 15000,
+            "currencyCode": "EUR"
+          },
+          "accountLimitTypeCode": "MONTHLY"
+        }
+      ],
+      "representatives": null,
+      "customFields": null
+    }
+  ],
+  "transactions": [
+    {
+      "externalAccountTransactionId": "EXT-AT-1000",
+      "externalAccountId": "EXT-A-1000",
+      "groupId": "1234",
+      "transactionTypeCode": "CARD_PUR",
+      "transactionSubtypeCode": null,
+      "amount": {
+        "amount": 1500,
+        "currencyCode": "EUR"
+      },
+      "initialBalanceAmount": 1000,
+      "valueDate": "2023-05-03",
+      "postingDate": "2023-05-03",
+      "details": "Card purchase - New laptop purchase",
+      "source": {
+        "sourceName": "CARD",
+        "sourceRef": "ID-181922",
+        "sourceLink": "https://mysystem.xyz/account/1000/transaction/ID-181922"
+      },
+      "merchantInfo": "{\"merchantName\":\"ComputerMARKT Gmbh\",\"merchantAddress\":\"Berlin, Germany\",\"terminalId\":\"54052345\",\"merchantType\":\"5541\",\"merchantTransactionId\":\"17e04828-6495-43f6-910b-5ec8cfa70873\"}",
+      "metaInfo": "{\"campaignCode\":\"1979\",\"customerRating\":\"11.77\",\"customerGroup\":\"GOLD\",\"orderMarketingId\":\"xxx1234450000\"}",
+      "contractSource": null,
+      "transactionDTime": "2023-04-18T14:11:16.868Z",
+      "counterparty": {
+        "name": "Peter Alexander Schmidt",
+        "accountNumber": {
+          "value": "DE89370400440532013000",
+          "type": "IBAN"
+        },
+        "accountNumberCountryCode": "EE",
+        "financialInstitutionId": {
+          "value": "MAINDE2XXXX",
+          "type": "BIC"
+        }
+      },
+      "endToEndId": "20210203-E000003",
+      "paymentServiceProviderCode": "TUUM",
+      "labels": [
+        "SEPA_REGULAR",
+        "ACC_VIRTUAL"
+      ],
+      "filingCode": "2023050300000001"
+    }
+  ]
+}
