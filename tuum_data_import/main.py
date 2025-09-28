@@ -19,12 +19,33 @@ logger.addHandler(fh)
 
 
 def generate_dynamic_source_ref(data_type):
+    """
+    Generates a dynamic and unique source reference string for imports.
+
+    Args:
+        data_type (str): Identifies type of data being imported, e.g. 'contracts'.
+
+    Returns:
+        str: A unique string combining current datetime and random characters.
+    """
     dt = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     rand_str = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
     return f"{dt}_{data_type}_{rand_str}"
 
 
 def authenticate_employee(auth_url, username, password, tenant_code):
+    """
+    Authenticates an employee by sending credentials to the authentication API endpoint.
+
+    Args:
+        auth_url (str): Authentication endpoint URL.
+        username (str): Employee username.
+        password (str): Employee password.
+        tenant_code (str): Tenant code for access control.
+
+    Returns:
+        str or None: Authentication token if successful; otherwise None.
+    """
     payload = {"username": username, "password": password}
     headers = {
         "Content-Type": "application/json",
@@ -58,6 +79,15 @@ def authenticate_employee(auth_url, username, password, tenant_code):
 
 
 def create_session_with_token(token):
+    """
+    Creates a requests.Session configured with retry strategy and authentication token header.
+
+    Args:
+        token (str): Authentication token to include in headers.
+
+    Returns:
+        requests.Session: Configured HTTP session object.
+    """
     session = requests.Session()
     retry_strategy = Retry(
         total=4,
@@ -73,6 +103,21 @@ def create_session_with_token(token):
 def import_single_file(
     session, import_base_url, source_name, source_ref, tenant_code, file_path, data_key
 ):
+    """
+    Imports a single data file to the API, handling loading, request construction, and logging.
+
+    Args:
+        session (requests.Session): Authenticated HTTP session.
+        import_base_url (str): Base URL of the import API.
+        source_name (str): External source system name.
+        source_ref (str): Unique reference for this import.
+        tenant_code (str): Tenant context code.
+        file_path (str): Path to the JSON file to import.
+        data_key (str): Top-level key in the payload ("contracts", "persons", etc.).
+
+    Returns:
+        None
+    """
     headers = {
         "x-leaf-tenant-code": tenant_code,
         "x-tenant-code": tenant_code,
@@ -83,7 +128,7 @@ def import_single_file(
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Unwrap wrapped contract files for API payload
+    # Unwrap wrapped contract files (e.g. { "contracts": [...] }) for API payload
     if data_key == "contracts" and isinstance(data, dict) and "contracts" in data:
         data_list = data["contracts"]
     else:
@@ -128,6 +173,18 @@ def import_single_file(
 
 
 def check_import_status(session, import_process_id, base_url, tenant_code):
+    """
+    Checks the status of an asynchronous import process.
+
+    Args:
+        session (requests.Session): Authenticated HTTP session.
+        import_process_id (str): Import process identifier.
+        base_url (str): Base URL of the import API.
+        tenant_code (str): Tenant context code.
+
+    Returns:
+        None
+    """
     status_url = f"{base_url}/api/v1/import/status/{import_process_id}"
     headers = {
         "accept": "*/*",
@@ -152,6 +209,15 @@ def check_import_status(session, import_process_id, base_url, tenant_code):
 
 
 def get_target_files(config):
+    """
+    Determines target data chunk files based on environment config.
+
+    Args:
+        config (dict): Configuration dictionary from environment variables.
+
+    Returns:
+        dict: Mapping of data keys ("persons", "contracts") to file paths.
+    """
     target_num = config.get("TARGET_FILE")
     if not target_num:
         logger.error("TARGET_FILE not set in env; cannot target specific chunk.")
@@ -177,6 +243,9 @@ def get_target_files(config):
 
 
 def main():
+    """
+    Main execution function to authenticate, locate chunk files, and initiate import.
+    """
     config = {**dotenv_values(".env.shared"), **dotenv_values(".env.secret")}
 
     token = authenticate_employee(
@@ -201,8 +270,8 @@ def main():
         exit(1)
 
     for data_key, file_path in target_files.items():
-        if data_key != "contracts":
-            continue
+        # if data_key != "contracts":
+        #     continue
         dynamic_source_ref = generate_dynamic_source_ref(data_key)
         import_single_file(
             session,

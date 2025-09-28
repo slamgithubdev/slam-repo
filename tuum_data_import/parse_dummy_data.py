@@ -9,27 +9,46 @@ from dateutil.relativedelta import relativedelta
 
 
 def parse_validity_range(years, months):
+    """
+    Calculate a past date by subtracting given years and months from today's date.
+
+    Args:
+        years (int): Number of years to subtract.
+        months (int): Number of months to subtract.
+
+    Returns:
+        str: Date string in 'YYYY-MM-DD' format representing the calculated past date.
+    """
     today = datetime.today()
     past_date = today - timedelta(days=years * 365 + months * 30)
     return past_date.strftime("%Y-%m-%d")
 
 
 def generate_id_number(length=11):
+    """
+    Generate a random alphanumeric ID string.
+
+    Args:
+        length (int): Desired length of the ID string.
+
+    Returns:
+        str: Randomly generated string composed of uppercase letters and digits.
+    """
     chars = string.ascii_uppercase + string.digits
     return "".join(random.choices(chars, k=length))
 
 
 def generate_schedule_lines_simple(end_date_str, principal, currency="GBP"):
     """
-    Generates a single schedule line with total principal amount on the end date.
+    Create a single schedule line dict representing the full principal payment on the end date.
 
     Args:
-        end_date_str (str): Final payment date in 'YYYY-MM-DD' format.
-        principal (float): Total loan principal amount.
-        currency (str): Currency code.
+        end_date_str (str): The final payment date (format 'YYYY-MM-DD').
+        principal (float): The total principal amount to be paid.
+        currency (str): The currency code (default 'GBP').
 
     Returns:
-        List[dict]: Single-item list with the schedule line.
+        list of dict: List with one schedule line dict.
     """
     return [
         {
@@ -44,6 +63,15 @@ def generate_schedule_lines_simple(end_date_str, principal, currency="GBP"):
 
 
 def map_person(row):
+    """
+    Map a CSV row representing a person to a JSON person entity.
+
+    Args:
+        row (dict): The CSV row with person data.
+
+    Returns:
+        dict: JSON representation of the person entity.
+    """
     addresses = []
     try:
         address_list = json.loads(row.get("AddressHistory", "[]"))
@@ -78,7 +106,6 @@ def map_person(row):
         if phone_cc_raw and isinstance(phone_cc_raw, str)
         else "+44"
     )
-
     phone_num = row.get("phone_number") or "0000000000"
 
     identification_numbers = [
@@ -115,6 +142,15 @@ def map_person(row):
 
 
 def map_agreement(row):
+    """
+    Map a CSV row with loan agreements into JSON loan contract objects.
+
+    Args:
+        row (dict): The CSV row including agreement data.
+
+    Returns:
+        list of dict: List of JSON loan contract representations.
+    """
     contracts = []
     try:
         ext_id = row.get("SurrogateKey")
@@ -126,12 +162,13 @@ def map_agreement(row):
 
             start_date = agreement.get("CREATION_SYSTEM_DATE", "")[:10]
 
-            # Calculate end_date as start_date + term months, or take from data if available
+            # Calculate the contract's end date based on start date and loan term in months
             end_date_obj = datetime.strptime(start_date, "%Y-%m-%d") + relativedelta(
                 months=term
             )
             end_date = end_date_obj.strftime("%Y-%m-%d")
 
+            # Generate a single schedule line for the entire principal on end date
             schedule_lines = generate_schedule_lines_simple(end_date, principal)
 
             components = [
@@ -226,11 +263,25 @@ def map_agreement(row):
 
 
 def chunks(lst, size):
+    """
+    Yield successive chunks from a list.
+
+    Args:
+        lst (list): List to be split.
+        size (int): Size of each chunk.
+
+    Yields:
+        list: Chunk of the original list.
+    """
     for i in range(0, len(lst), size):
         yield lst[i : i + size]
 
 
 def main():
+    """
+    Main function that processes the CSV data and generates JSON chunk files
+    for persons and loan contracts for API import.
+    """
     person_folder = "person_chunks"
     contract_folder = "contract_chunks"
     os.makedirs(person_folder, exist_ok=True)
