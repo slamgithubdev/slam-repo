@@ -3,8 +3,8 @@ from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 
-from dataclass_contract import Component, Contract, Repayment
-from domain_contract_config import COUNTRY_CODE
+from domain_config.contracts import COUNTRY_CODE
+from domain_dataclass.contracts import Component, Contract, Repayment
 
 
 def generate_schedule_lines_simple(end_date_str, principal, currency="GBP"):

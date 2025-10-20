@@ -60,4 +60,4 @@ class Person:
     phoneNumber: str
     addresses: List[Address] = field(default_factory=list)
     identificationNumbers: List[IdentificationNumber] = field(default_factory=list)
-    # employmentHistory: List[Employment] = field(default_factory=list)
+    # employmentHistory: List[Employment] = field(default_factory=list) # for later use, add as custom field

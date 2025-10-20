@@ -7,20 +7,20 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzutc
 
-from dataclass_person import (
+from domain_config.persons import (
+    ADDRESS_TYPE_CODE,
+    COUNTRY_CODE,
+    PERSON_TYPE_CODE,
+    PHONE_DEFAULT_CC,
+    SOURCE_NAME_PERSON,
+)
+from domain_dataclass.persons import (
     Address,
     Employment,
     IdentificationNumber,
     Person,
     Source,
     ValidityRange,
-)
-from domain_person_config import (
-    ADDRESS_TYPE_CODE,
-    COUNTRY_CODE,
-    PERSON_TYPE_CODE,
-    PHONE_DEFAULT_CC,
-    SOURCE_NAME_PERSON,
 )
 
 

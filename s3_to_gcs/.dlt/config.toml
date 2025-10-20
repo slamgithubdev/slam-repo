@@ -4,9 +4,9 @@ dlthub_telemetry = true
 
 [sources.filesystem]
 bucket_url = "s3://aws-glue-billing-finance-dev"
-file_glob = "2025/08/14/*"
+file_glob = "2025/07/17/*"
 requester_pays = true
 
 [destination.filesystem]
 bucket_url = "gs://daneshp-sandbox-delphi-data"
-prefix = "2025/08/14/"
+prefix = "2025/07/17/"

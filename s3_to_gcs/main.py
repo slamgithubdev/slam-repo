@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 AWS_ROLE_ARN = "arn:aws:iam::513720670489:role/BF_Tuum_S3_Read"
 AWS_SESSION_NAME = "dlt-session"
 S3_BUCKET = "aws-glue-billing-finance-dev"
-S3_PREFIX = "2025/09"
+S3_PREFIX = "2025/07"
 SCHEMAS_BY_DOMAIN = {
     "debt": debt_schema.TABLE_SCHEMAS,
     "finance": finance_schema.TABLE_SCHEMAS,
