@@ -7,14 +7,14 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzutc
 
-from domain_config.persons import (
+from domain_config.persons_config import (
     ADDRESS_TYPE_CODE,
     COUNTRY_CODE,
     PERSON_TYPE_CODE,
     PHONE_DEFAULT_CC,
     SOURCE_NAME_PERSON,
 )
-from domain_dataclass.persons import (
+from domain_dataclass.persons_dataclass import (
     Address,
     Employment,
     IdentificationNumber,
@@ -130,7 +130,7 @@ def map_person(row):
         givenName=person_info.get("given_name", ""),
         middleName="",
         surname=person_info.get("surname", ""),
-        name=person_info.get("short_name", ""),
+        name="",
         birthDate=person_info.get("birth_date", ""),
         email=contact_info.get("email", ""),
         phoneNumberCountryCode=phone_cc,

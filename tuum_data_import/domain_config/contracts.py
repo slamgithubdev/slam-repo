@@ -1,3 +1,0 @@
-COUNTRY_CODE = "GB"
-CONTRACT_CHUNK_FOLDER = "chunks_contracts"
-CHUNK_SIZE = 2

@@ -1,5 +1,7 @@
+# domain_dataclass/contracts_dataclass.py
+
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -14,6 +16,7 @@ class Component:
     rateBaseCode: Optional[str] = None
     marginRate: Optional[int] = None
     baseRate: Optional[int] = None
+    debts: Optional[List[Dict[str, Any]]] = None  # NEW: Debt tracking
 
 
 @dataclass
@@ -48,7 +51,7 @@ class Contract:
     apr: Optional[float]
     scheduleTypeCode: str
     limitMoney: dict
-    contractFeeMoney: Optional[float]
+    contractFeeMoney: Optional[dict]
     contractMoney: dict
     countryCode: str
     tenantCode: str
@@ -64,6 +67,6 @@ class Contract:
     repaymentChannelCode: str
     contractConditions: Optional[str]
     components: List[Component]
-    coBorrowers: Optional[List]
-    scheduleLines: List[dict]
-    customFields: Optional[dict]
+    coBorrowers: Optional[List] = None
+    scheduleLines: List[dict] = field(default_factory=list)
+    customFields: Optional[dict] = None

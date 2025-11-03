@@ -1,243 +1,287 @@
+# main_parser.py
+
+import csv
 import json
+import logging
 import os
-from dataclasses import asdict, is_dataclass
+import sys
+from dataclasses import asdict
+from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
 
-import polars as pl
+from domain_config.contracts_config import (
+    CONTRACT_CHUNK_FOLDER,
+    CONTRACT_CHUNK_SIZE,
+    LOG_FILE,
+    LOG_LEVEL,
+)
+from domain_config.persons_config import CHUNK_SIZE as PERSON_CHUNK_SIZE
+from domain_config.persons_config import PERSON_CHUNK_FOLDER
+from domain_mapper.contracts_mapper import map_agreement
+from domain_mapper.persons_mapper import map_person
 
-from domain_config.contracts import CONTRACT_CHUNK_FOLDER
-from domain_config.persons import CHUNK_SIZE, PERSON_CHUNK_FOLDER
-from domain_mapper.contracts import map_agreement
-from domain_mapper.persons import map_person
+# ═══════════════════════════════════════════════════════════════════════
+# LOGGING SETUP
+# ═══════════════════════════════════════════════════════════════════════
+
+logger = logging.getLogger(__name__)
+logger.setLevel(LOG_LEVEL)
+
+file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter(
+    "[%(asctime)s] %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+file_handler.setFormatter(file_formatter)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter("[%(levelname)s] %(message)s")
+console_handler.setFormatter(console_formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 
-def chunks(lst, size):
-    for i in range(0, len(lst), size):
-        yield lst[i : i + size]
+def make_json_serializable(obj):
+    """Recursively convert non-JSON-serializable objects"""
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(item) for item in obj]
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif hasattr(obj, "__dict__"):
+        return make_json_serializable(asdict(obj))
+    else:
+        return obj
 
 
-def save_json_chunks(data_list, folder, prefix, chunk_size):
-    os.makedirs(folder, exist_ok=True)
-    for idx, chunk in enumerate(chunks(data_list, chunk_size), 1):
-        # Convert dataclass objects to dictionaries
-        serializable_chunk = [
-            asdict(item) if is_dataclass(item) else item for item in chunk
-        ]
+def validate_pri_balance(contract_dict):
+    """Validate PRI component balance equals sum of unprocessed PRI schedule lines"""
+    pri_component = None
+    for comp in contract_dict.get("components", []):
+        if comp.get("componentTypeCode") == "PRI":
+            pri_component = comp
+            break
 
-        filename = os.path.join(folder, f"{prefix}_{idx}.json")
-        with open(filename, "w", encoding="utf-8") as f:
-            if prefix == "contract":
-                json.dump({"contracts": serializable_chunk}, f, indent=2)
-            else:
-                json.dump(serializable_chunk, f, indent=2)
+    if not pri_component:
+        raise ValueError("PRI component not found")
+
+    component_balance = Decimal(
+        str(pri_component.get("balanceMoney", {}).get("amount", 0))
+    )
+
+    schedule_total = Decimal("0")
+    for line in contract_dict.get("scheduleLines", []):
+        if line.get("componentTypeCode") == "PRI" and not line.get("processed", True):
+            schedule_total += Decimal(str(line["paymentMoney"]["amount"]))
+
+    diff = abs(component_balance - schedule_total)
+    if diff > Decimal("0.01"):
+        raise ValueError(
+            f"PRI Balance Mismatch: component={component_balance:.2f}, "
+            f"future_schedules={schedule_total:.2f}, diff={diff:.2f}"
+        )
+
+
+def parse_csv_persons(csv_filepath):
+    """Parse persons from CSV"""
+    chunk_folder = Path(PERSON_CHUNK_FOLDER)
+    chunk_folder.mkdir(parents=True, exist_ok=True)
+
+    all_persons = []
+    chunk_index = 1
+    current_chunk = []
+    processed_ids = set()  # Track to avoid duplicates
+
+    logger.info("\n" + "=" * 70)
+    logger.info("PARSING PERSONS")
+    logger.info("=" * 70)
+
+    try:
+        with open(csv_filepath, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+
+            for row_idx, row in enumerate(reader):
+                try:
+                    person_id = row.get("IBCSurrogate")
+
+                    # Skip if already processed (avoid duplicates)
+                    if person_id in processed_ids:
+                        continue
+
+                    person = map_person(row)
+
+                    if person:
+                        processed_ids.add(person_id)
+                        person_dict = make_json_serializable(asdict(person))
+                        current_chunk.append(person_dict)
+                        all_persons.append(person)
+
+                        logger.debug(f"  ✓ Person: {person.externalPersonId}")
+
+                        if len(current_chunk) >= PERSON_CHUNK_SIZE:
+                            _write_persons_chunk(
+                                chunk_folder, chunk_index, current_chunk
+                            )
+                            chunk_index += 1
+                            current_chunk = []
+
+                except Exception as e:
+                    logger.warning(f"Error on person row {row_idx}: {e}")
+
+        if current_chunk:
+            _write_persons_chunk(chunk_folder, chunk_index, current_chunk)
+
+    except FileNotFoundError:
+        logger.error(f"CSV file not found: {csv_filepath}")
+        return []
+    except Exception as e:
+        logger.error(f"Fatal error parsing persons: {e}", exc_info=True)
+        return []
+
+    logger.info(f"✓ Persons parsed: {len(all_persons)}")
+    return all_persons
+
+
+def parse_csv_contracts(csv_filepath):
+    """Parse contracts from CSV"""
+    chunk_folder = Path(CONTRACT_CHUNK_FOLDER)
+    chunk_folder.mkdir(parents=True, exist_ok=True)
+
+    all_contracts = []
+    chunk_index = 1
+    current_chunk = []
+
+    logger.info("\n" + "=" * 70)
+    logger.info("PARSING CONTRACTS")
+    logger.info("=" * 70)
+
+    try:
+        with open(csv_filepath, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+
+            for row_idx, row in enumerate(reader):
+                try:
+                    logger.info(
+                        f"\n[Row {row_idx}] Processing: {row.get('IBCSurrogate')}"
+                    )
+
+                    mapped_contracts = map_agreement(row)
+
+                    for contract in mapped_contracts:
+                        contract_dict = make_json_serializable(asdict(contract))
+
+                        try:
+                            validate_pri_balance(contract_dict)
+                            logger.info(f"  ✓ Validation passed")
+                        except ValueError as ve:
+                            logger.error(f"  ✗ Validation failed: {ve}")
+                            continue
+
+                        current_chunk.append(contract_dict)
+                        all_contracts.append(contract)
+
+                        logger.info(
+                            f"  ✓ Contract added: {contract.externalContractId}"
+                        )
+
+                    if len(current_chunk) >= CONTRACT_CHUNK_SIZE:
+                        _write_contracts_chunk(chunk_folder, chunk_index, current_chunk)
+                        chunk_index += 1
+                        current_chunk = []
+
+                except Exception as e:
+                    logger.error(f"Error on row {row_idx}: {e}", exc_info=True)
+
+        if current_chunk:
+            _write_contracts_chunk(chunk_folder, chunk_index, current_chunk)
+
+    except FileNotFoundError:
+        logger.error(f"CSV file not found: {csv_filepath}")
+        return []
+    except Exception as e:
+        logger.error(f"Fatal error parsing contracts: {e}", exc_info=True)
+        return []
+
+    logger.info(f"✓ Contracts parsed: {len(all_contracts)}")
+    return all_contracts
+
+
+def _write_persons_chunk(chunk_folder, chunk_index, chunk_data):
+    """Write persons chunk to JSON file"""
+    chunk_file = chunk_folder / f"persons_{chunk_index:04d}.json"
+
+    try:
+        output = {"persons": chunk_data}
+
+        with open(chunk_file, "w", encoding="utf-8") as cf:
+            json.dump(output, cf, indent=2, default=str)
+
+        logger.info(
+            f"✓ Persons chunk written: {chunk_file} ({len(chunk_data)} persons)"
+        )
+
+    except Exception as e:
+        logger.error(f"Error writing persons chunk {chunk_index}: {e}", exc_info=True)
+
+
+def _write_contracts_chunk(chunk_folder, chunk_index, chunk_data):
+    """Write contracts chunk to JSON file"""
+    chunk_file = chunk_folder / f"contracts_{chunk_index:04d}.json"
+
+    try:
+        output = {"contracts": chunk_data}
+
+        with open(chunk_file, "w", encoding="utf-8") as cf:
+            json.dump(output, cf, indent=2, default=str)
+
+        logger.info(
+            f"✓ Contracts chunk written: {chunk_file} ({len(chunk_data)} contracts)"
+        )
+
+    except Exception as e:
+        logger.error(f"Error writing contracts chunk {chunk_index}: {e}", exc_info=True)
 
 
 def main():
-    file_path = r"anon_data_attempt1.csv"
-    df = pl.read_csv(
-        file_path, null_values=["NULL", "null"], truncate_ragged_lines=True
+    """Main entry point - processes persons and contracts"""
+    csv_file = "anon_data_attempt1.csv"
+
+    if not os.path.exists(csv_file):
+        logger.error(f"✗ CSV file not found: {csv_file}")
+        return
+
+    logger.info("=" * 70)
+    logger.info("TUUM DATA MIGRATION PARSER")
+    logger.info("=" * 70)
+    logger.info(f"CSV file: {os.path.abspath(csv_file)}")
+    logger.info(f"Persons output: {os.path.abspath(PERSON_CHUNK_FOLDER)}")
+    logger.info(f"Contracts output: {os.path.abspath(CONTRACT_CHUNK_FOLDER)}")
+    logger.info(f"Log file: {os.path.abspath(LOG_FILE)}")
+
+    # Parse persons first
+    persons = parse_csv_persons(csv_file)
+
+    # Parse contracts
+    contracts = parse_csv_contracts(csv_file)
+
+    # Summary
+    logger.info("\n" + "=" * 70)
+    logger.info("IMPORT SUMMARY")
+    logger.info("=" * 70)
+    logger.info(f"✓ Persons parsed: {len(persons)}")
+    logger.info(f"✓ Contracts parsed: {len(contracts)}")
+    logger.info(f"✓ Output folder (persons): {os.path.abspath(PERSON_CHUNK_FOLDER)}")
+    logger.info(
+        f"✓ Output folder (contracts): {os.path.abspath(CONTRACT_CHUNK_FOLDER)}"
     )
-
-    persons = [map_person(row) for row in df.iter_rows(named=True)]
-    contracts = []
-    for row in df.iter_rows(named=True):
-        contracts.extend(map_agreement(row))
-
-    save_json_chunks(persons, PERSON_CHUNK_FOLDER, "person", CHUNK_SIZE)
-    save_json_chunks(contracts, CONTRACT_CHUNK_FOLDER, "contract", CHUNK_SIZE)
+    logger.info(f"✓ Log file: {os.path.abspath(LOG_FILE)}")
+    logger.info("=" * 70 + "\n")
 
 
 if __name__ == "__main__":
     main()
-
-
-# import json
-# import os
-# import random
-# import string
-# from dataclasses import asdict, is_dataclass
-# from datetime import datetime
-
-# import polars as pl
-# from dateutil.relativedelta import relativedelta
-# from dateutil.tz import tzutc
-
-# from dataclass_person import (
-#     Address,
-#     Employment,
-#     IdentificationNumber,
-#     Person,
-#     Source,
-#     ValidityRange,
-# )
-# from domain_person_config import (
-#     ADDRESS_TYPE_CODE,
-#     CHUNK_SIZE,
-#     COUNTRY_CODE,
-#     PERSON_CHUNK_FOLDER,
-#     PERSON_TYPE_CODE,
-#     PHONE_DEFAULT_CC,
-#     SOURCE_NAME_PERSON,
-# )
-
-
-# def iso_now_utc():
-#     return datetime.now(tz=tzutc()).isoformat()
-
-
-# def generate_id_number(length=11):
-#     chars = string.ascii_uppercase + string.digits
-#     return "".join(random.choices(chars, k=length))
-
-
-# def parse_validity_dates():
-#     now_iso = iso_now_utc()
-#     return ValidityRange(startTime=now_iso, endTime=now_iso)
-
-
-# def parse_validity_range(years, months):
-#     """
-#     Calculate a past date by subtracting given years and months from today's date.
-#     Args:
-#         years (int): Number of years to subtract.
-#         months (int): Number of months to subtract.
-#     Returns:
-#         str: Date string in 'YYYY-MM-DD' format representing the calculated past date.
-#     """
-#     today = datetime.today()
-#     past_date = today - relativedelta(years=years, months=months)
-#     return past_date.strftime("%Y-%m-%d")
-
-
-# def map_address_list(address_json_str):
-#     addresses = []
-#     try:
-#         addr_list = json.loads(address_json_str)
-#         for addr in addr_list:
-#             move_in_date = addr.get("YEARS_AT", 0)
-#             # Compute moveInDate as string; if months/years available, calculate proper date if required
-#             street = addr.get("STREET1") or addr.get("STREET2") or "UNKNOWN STREET"
-#             address = Address(
-#                 addressTypeCode=ADDRESS_TYPE_CODE,
-#                 street1=street,
-#                 street2="",
-#                 cityCounty=addr.get("POSTTOWN", ""),
-#                 stateRegion=addr.get("COUNTY", ""),
-#                 zip=addr.get("POSTCODE", ""),
-#                 countryCode=COUNTRY_CODE,
-#                 moveInDate=parse_validity_range(
-#                     addr.get("YEARS_AT", 0), addr.get("MONTHS_AT", 0)
-#                 ),
-#                 validityRange=parse_validity_dates(),
-#             )
-#             addresses.append(address)
-#     except Exception:
-#         addresses = []
-#     return addresses
-
-
-# def map_identification_numbers(ext_id):
-#     id_num = ext_id[-12:] if ext_id and len(ext_id) >= 12 else generate_id_number()
-#     validity = parse_validity_dates()
-#     return [
-#         IdentificationNumber(
-#             idNumber=id_num,
-#             idCountryCode=COUNTRY_CODE,
-#             primary=True,
-#             validityRange=validity,
-#         )
-#     ]
-
-
-# def map_employment_history(employment_json_str):
-#     employment_list = []
-#     try:
-#         data = json.loads(employment_json_str)
-#         for emp in data:
-#             employment_list.append(
-#                 Employment(
-#                     personId=emp.get("Person_ID", ""),
-#                     jobTitle=emp.get("JOB TITLE", "").strip(),
-#                     employer=emp.get("EMPLOYER", "").strip(),
-#                     yearsAt=int(emp.get("YEARS_AT", 0)),
-#                     monthsAt=int(emp.get("MONTHS_AT", 0)),
-#                 )
-#             )
-#     except Exception:
-#         employment_list = []
-#     return employment_list
-
-
-# def map_person(row):
-#     ext_id = row.get("IBCSurrogate") or "UNKNOWN-ID"
-
-#     # Parse nested JSON strings in columns
-#     person_info = {}
-#     contact_info = {}
-
-#     try:
-#         person_info = json.loads(row.get("MaskedPersonInfo", "{}"))
-#     except Exception:
-#         pass
-
-#     try:
-#         contact_info = json.loads(row.get("MaskedContactInfo", "{}"))
-#     except Exception:
-#         pass
-
-#     phone_cc_raw = contact_info.get("phone_country_code", PHONE_DEFAULT_CC)
-#     phone_cc = (
-#         phone_cc_raw.strip() if isinstance(phone_cc_raw, str) else PHONE_DEFAULT_CC
-#     )
-
-#     person = Person(
-#         externalPersonId=ext_id,  # based off surrogate key
-#         source=Source(
-#             sourceName=SOURCE_NAME_PERSON, sourceRef=ext_id
-#         ),  # based off surrogate key
-#         personTypeCode=PERSON_TYPE_CODE,
-#         givenName=person_info.get("given_name", ""),
-#         middleName="",
-#         surname=person_info.get("surname", ""),
-#         name=person_info.get("short_name", ""),
-#         birthDate=person_info.get("birth_date", ""),
-#         email=contact_info.get("email", ""),
-#         phoneNumberCountryCode=phone_cc,
-#         phoneNumber=contact_info.get("masked_phone", ""),
-#         addresses=map_address_list(row.get("MaskedAddressHistory", "[]")),
-#         identificationNumbers=map_identification_numbers(
-#             ext_id=ext_id
-#         ),  # Related to registration number or Social Security Number/Passport number etc. Currently based off last 12 digits of surrogate key.
-#         # employmentHistory=map_employment_history(row.get("EmploymentHistory", "[]")), add custom field
-#     )
-#     return person
-
-
-# def chunks(lst, size):
-#     for i in range(0, len(lst), size):
-#         yield lst[i : i + size]
-
-
-# def save_json_chunks(data_list, folder, prefix, chunk_size):
-#     os.makedirs(folder, exist_ok=True)
-#     for idx, chunk in enumerate(chunks(data_list, chunk_size), 1):
-#         serializable_chunk = [
-#             asdict(item) if is_dataclass(item) else item for item in chunk
-#         ]
-#         filename = os.path.join(folder, f"{prefix}_{idx}.json")
-#         with open(filename, "w", encoding="utf-8") as f:
-#             json.dump(serializable_chunk, f, indent=2)
-
-
-# def main():
-#     file_path = r"C:\Users\Danesh.Paul\Documents\tuum-data-migration\tuum_data_import\anon_data_attempt1.csv"  # Set your actual CSV path here
-#     df = pl.read_csv(
-#         file_path, null_values=["NULL", "null"], truncate_ragged_lines=True
-#     )
-
-#     persons = [map_person(row) for row in df.iter_rows(named=True)]
-
-#     save_json_chunks(persons, PERSON_CHUNK_FOLDER, "person", CHUNK_SIZE)
-
-
-# if __name__ == "__main__":
-#     main()
