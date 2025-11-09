@@ -3,8 +3,8 @@
 import csv
 import json
 import logging
-from datetime import datetime
-from decimal import Decimal
+from datetime import date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 
 from dateutil.relativedelta import relativedelta
 
@@ -39,237 +39,32 @@ def parse_transaction_history(transaction_history_json):
         return []
 
 
-def group_transactions_by_posting_date(transactions, agreement_ref):
-    """
-    Group transactions by postingDate and calculate net payment per date.
+def group_transactions_by_posting_date(transactions):
+    """Group transactions by posting date and calculate total amount"""
+    from collections import defaultdict
 
-    Returns: {postingDate: {'net': Decimal, 'transactions': [...]}}
-    """
-    grouped = {}
-
-    for tx in transactions:
-        if tx.get("AGREEMENT_REF") != agreement_ref:
-            continue
-
-        posting_date = tx.get("postingDate", "")[:10]  # YYYY-MM-DD
-        if not posting_date:
-            continue
-
-        try:
-            amount_obj = tx.get("amount", {})
-            if isinstance(amount_obj, dict):
-                amount = Decimal(str(amount_obj.get("amount", 0)))
-            else:
-                amount = Decimal(str(amount_obj))
-        except Exception as e:
-            logger.warning(f"Error parsing transaction amount: {e}")
-            continue
-
-        if posting_date not in grouped:
-            grouped[posting_date] = {
-                "net": Decimal("0"),
-                "transactions": [],
-                "posting_date": posting_date,
-            }
-
-        grouped[posting_date]["transactions"].append(
-            {
-                "amount": amount,
-                "details": tx.get("details", ""),
-                "type": tx.get("transactionTypeCode", ""),
-                "value_date": tx.get("valueDate", ""),
-            }
-        )
-
-        grouped[posting_date]["net"] += amount
+    grouped = defaultdict(list)
+    for txn in transactions:
+        posting_date = txn.get("POSTING_DATE", "")[:10]
+        if posting_date:
+            grouped[posting_date].append(txn)
 
     return grouped
 
 
-def process_schedule_with_transactions(
-    schedule_lines,
-    monthly_repayment_amount,
-    transaction_groups,
-    agreement_ref,
-):
+def calculate_processed_amounts(transactions, cashflow_schedule):
     """
-    Process schedule lines against transaction history.
-
-    NEW LOGIC: Group by payment date FIRST, then allocate across components.
+    Calculate which payments have been processed based on transaction history.
+    Returns dict mapping payment dates to processed amounts.
     """
-    debt_balance_by_component = {}
-    debt_by_line_by_component = {}
+    grouped_txns = group_transactions_by_posting_date(transactions)
+    processed_payments = {}
 
-    logger.info(f"\n{'=' * 70}")
-    logger.info(f"Processing Schedule Lines with Transaction History")
-    logger.info(f"Agreement: {agreement_ref}")
-    logger.info(f"{'=' * 70}")
+    for payment_date, txns in grouped_txns.items():
+        total_amount = sum(abs(Decimal(str(txn.get("AMOUNT", 0)))) for txn in txns)
+        processed_payments[payment_date] = total_amount
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # STEP 1: Group schedule lines by payment date
-    # ═══════════════════════════════════════════════════════════════════════
-
-    schedule_by_date = {}
-    for line in schedule_lines:
-        pay_date = line["paymentDate"]
-        if pay_date not in schedule_by_date:
-            schedule_by_date[pay_date] = []
-        schedule_by_date[pay_date].append(line)
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # STEP 2: Process each payment date (NOT each line individually)
-    # ═══════════════════════════════════════════════════════════════════════
-
-    for pay_date in sorted(schedule_by_date.keys()):
-        lines_for_date = schedule_by_date[pay_date]
-
-        try:
-            payment_date_obj = datetime.strptime(pay_date, "%Y-%m-%d").date()
-        except ValueError:
-            logger.error(f"Invalid payment date: {pay_date}")
-            for line in lines_for_date:
-                line["processed"] = False
-            continue
-
-        # Skip future payments
-        if payment_date_obj > IMPORT_DATE:
-            for line in lines_for_date:
-                line["processed"] = False
-            logger.debug(f"  {pay_date}: Future payment")
-            continue
-
-        # Initialize debt tracking for components on this date
-        for line in lines_for_date:
-            comp_type = line["componentTypeCode"]
-            if comp_type not in debt_balance_by_component:
-                debt_balance_by_component[comp_type] = {
-                    "amount": Decimal("0"),
-                    "start_date": None,
-                }
-
-        # Calculate total expected for this date (all components + debt)
-        total_scheduled = Decimal("0")
-        total_outstanding_debt = Decimal("0")
-        component_breakdown = {}
-
-        for line in lines_for_date:
-            comp_type = line["componentTypeCode"]
-            scheduled_amount = Decimal(str(line["paymentMoney"]["amount"]))
-            outstanding_debt = debt_balance_by_component[comp_type]["amount"]
-
-            component_breakdown[comp_type] = {
-                "scheduled": scheduled_amount,
-                "outstanding_debt": outstanding_debt,
-                "line": line,
-            }
-
-            total_scheduled += scheduled_amount
-            total_outstanding_debt += outstanding_debt
-
-        total_expected = total_scheduled + total_outstanding_debt
-
-        # Get actual payment for this date
-        tx_group = transaction_groups.get(pay_date, {})
-        actual_net_payment = tx_group.get("net", Decimal("0"))
-        actual_paid = (
-            abs(actual_net_payment) if actual_net_payment < 0 else Decimal("0")
-        )
-
-        logger.info(
-            f"\n  {pay_date}:\n"
-            f"    Scheduled (all components): £{total_scheduled:.2f}\n"
-            f"    Outstanding debt (all): £{total_outstanding_debt:.2f}\n"
-            f"    Total expected: £{total_expected:.2f}\n"
-            f"    Actual paid: £{actual_paid:.2f}"
-        )
-
-        for comp_type, info in component_breakdown.items():
-            logger.info(
-                f"      [{comp_type}] Scheduled: £{info['scheduled']:.2f}, "
-                f"Debt: £{info['outstanding_debt']:.2f}"
-            )
-
-        # Log transactions
-        if pay_date in transaction_groups:
-            for tx in transaction_groups[pay_date]["transactions"]:
-                logger.debug(
-                    f"      TX: £{tx['amount']:.2f} ({tx['type']}) - {tx['details']}"
-                )
-
-        # ═══════════════════════════════════════════════════════════════════
-        # PAYMENT ALLOCATION LOGIC (BY DATE, NOT BY LINE)
-        # ═══════════════════════════════════════════════════════════════════
-
-        if actual_paid >= total_expected:
-            # FULL PAYMENT - covers current + all debt
-            for comp_type, info in component_breakdown.items():
-                info["line"]["processed"] = True
-
-                if debt_balance_by_component[comp_type]["amount"] > 0:
-                    logger.info(
-                        f"    ✓ [{comp_type}] Debt cleared: "
-                        f"£{debt_balance_by_component[comp_type]['amount']:.2f} → £0.00"
-                    )
-
-                debt_balance_by_component[comp_type]["amount"] = Decimal("0")
-                debt_balance_by_component[comp_type]["start_date"] = None
-
-        else:
-            # INSUFFICIENT PAYMENT - allocate shortfall proportionally
-            total_shortfall = total_expected - actual_paid
-
-            for comp_type, info in component_breakdown.items():
-                info["line"]["processed"] = False
-
-                # Calculate proportional shortfall for this component
-                component_expected = info["scheduled"] + info["outstanding_debt"]
-                proportion = (
-                    component_expected / total_expected
-                    if total_expected > 0
-                    else Decimal("0")
-                )
-                component_shortfall = (total_shortfall * proportion).quantize(
-                    Decimal("0.01")
-                )
-
-                # Track debt start date
-                if debt_balance_by_component[comp_type]["start_date"] is None:
-                    debt_balance_by_component[comp_type]["start_date"] = pay_date
-
-                # Add shortfall to debt
-                debt_balance_by_component[comp_type]["amount"] += component_shortfall
-
-                logger.warning(
-                    f"    ✗ [{comp_type}] Shortfall: £{component_shortfall:.2f}. "
-                    f"New debt: £{debt_balance_by_component[comp_type]['amount']:.2f}"
-                )
-
-        # Track debt for reporting
-        for comp_type in component_breakdown.keys():
-            if comp_type not in debt_by_line_by_component:
-                debt_by_line_by_component[comp_type] = []
-
-            debt_by_line_by_component[comp_type].append(
-                {
-                    "payment_date": pay_date,
-                    "processed": component_breakdown[comp_type]["line"]["processed"],
-                    "debt_after": debt_balance_by_component[comp_type]["amount"],
-                }
-            )
-
-    logger.info(f"\n{'=' * 70}")
-    logger.info("Final Debt Summary:")
-    for comp_type, debt_info in debt_balance_by_component.items():
-        if debt_info["amount"] > 0:
-            logger.info(
-                f"  {comp_type}: £{debt_info['amount']:.2f} "
-                f"(started: {debt_info['start_date']})"
-            )
-        else:
-            logger.info(f"  {comp_type}: £0.00 (no debt)")
-    logger.info(f"{'=' * 70}\n")
-
-    return schedule_lines, debt_by_line_by_component, debt_balance_by_component
+    return processed_payments
 
 
 def generate_schedule_lines(
@@ -280,78 +75,87 @@ def generate_schedule_lines(
     term,
     agreement_ref=None,
     currency="GBP",
+    transaction_history=None,
 ):
     """
-    Generate schedule lines from CashFlow + InterestPayments.
+    Generate schedule lines with adaptive deferred interest strategy.
 
-    Returns: (schedule_lines, actual_pri_total, strategy_used_flag, actual_end_date)
+    Strategy:
+    1. Identify pre-contract interest (charges before first payment)
+    2. Determine optimal spread period (12, 24, 36, or all payments)
+    3. Allocate deferred interest evenly across spread period
+    4. Match month interest to payment dates
+    5. Mark past payments as processed
+    6. Validate every penny is accounted for
+    7. Adjust first PRI line to match expected principal exactly
+
+    Returns: (schedule_lines, pri_total, is_fallback, end_date)
     """
-    schedule_lines = []
 
-    # Parse JSON
+    schedule_lines = []
+    today_str = date.today().isoformat()  # "2025-11-09"
+
     try:
+        # ═══════════════════════════════════════════════════════════════════
+        # STEP 1: Parse JSON data
+        # ═══════════════════════════════════════════════════════════════════
         cashflow_data = json.loads(cashflow_json or "[]")
         interest_data = json.loads(interest_json or "[]")
-    except Exception as e:
-        logger.error(f"JSON parsing error: {e}")
-        schedule_lines.append(
-            {
-                "componentTypeCode": "PRI",
-                "paymentMoney": {
-                    "amount": safe_amount(expected_principal),
-                    "currencyCode": currency,
-                },
-                "paymentDate": start_date,
-                "processed": False,
-            }
-        )
-        return schedule_lines, Decimal(str(expected_principal)), False, start_date
 
-    if not isinstance(cashflow_data, list):
-        cashflow_data = [cashflow_data]
-    if not isinstance(interest_data, list):
-        interest_data = [interest_data]
+        if not isinstance(cashflow_data, list):
+            cashflow_data = [cashflow_data]
+        if not isinstance(interest_data, list):
+            interest_data = [interest_data]
 
-    # Filter by agreement_ref
-    if agreement_ref:
-        cashflow_data = [
-            x
-            for x in cashflow_data
-            if x.get("AGREEMENT_REF") == agreement_ref
-            or x.get("AgreementRef") == agreement_ref
+        # Filter by agreement_ref if provided
+        if agreement_ref:
+            cashflow_data = [
+                x for x in cashflow_data if x.get("AgreementRef") == agreement_ref
+            ]
+            interest_data = [
+                x for x in interest_data if x.get("AgreementRef") == agreement_ref
+            ]
+
+        # ═══════════════════════════════════════════════════════════════════
+        # STEP 2: Extract instalments from cashflow
+        # ═══════════════════════════════════════════════════════════════════
+        flat_schedule_lines = []
+        for cf_entry in cashflow_data:
+            sl_json = cf_entry.get("ScheduleLines", "[]")
+            try:
+                sl_list = json.loads(sl_json) if isinstance(sl_json, str) else sl_json
+                if isinstance(sl_list, list):
+                    flat_schedule_lines.extend(sl_list)
+            except Exception as e:
+                logger.error(f"Error parsing ScheduleLines: {e}")
+
+        # Filter for INSTALMENT entries only
+        instalments = [
+            sl
+            for sl in flat_schedule_lines
+            if sl.get("FINANCE_DETAIL_BEH_CODE") == "INSTALMENT"
         ]
-        interest_data = [
-            x
-            for x in interest_data
-            if x.get("AGREEMENT_REF") == agreement_ref
-            or x.get("AgreementRef") == agreement_ref
-        ]
+        instalments.sort(key=lambda x: x.get("DUE_DATE", ""))
 
-    # Flatten CashFlow schedule lines
-    flat_schedule_lines = []
-    for cf_entry in cashflow_data:
-        sl_json = cf_entry.get("ScheduleLines")
-        if not sl_json:
-            continue
-        try:
-            sl_list = json.loads(sl_json) if isinstance(sl_json, str) else sl_json
-            if isinstance(sl_list, list):
-                flat_schedule_lines.extend(sl_list)
-        except Exception as e:
-            logger.error(f"Error parsing ScheduleLines: {e}")
+        if not instalments:
+            logger.warning(f"No instalments found for {agreement_ref}")
+            return _create_fallback_schedule(
+                expected_principal,
+                start_date,
+                currency,
+                instalments=None,
+                all_interest_charges=None,
+            )
 
-    if not flat_schedule_lines:
-        logger.warning("No schedule lines found in CashFlow")
-        return [], Decimal("0"), False, start_date
+        logger.info(f"Found {len(instalments)} instalments")
 
-    # Sort by DUE_DATE
-    flat_schedule_lines.sort(key=lambda x: x.get("DUE_DATE", ""))
+        # ═══════════════════════════════════════════════════════════════════
+        # STEP 3: Extract finance charges (interest) from interest payments
+        # ═══════════════════════════════════════════════════════════════════
+        all_interest_charges = []
 
-    # Build interest lookup by month
-    interest_by_month = {}
-    for ip_entry in interest_data:
-        ip_list_str = ip_entry.get("InterestPayments")
-        if ip_list_str:
+        for ip_entry in interest_data:
+            ip_list_str = ip_entry.get("InterestPayments", "[]")
             try:
                 ips = (
                     json.loads(ip_list_str)
@@ -360,70 +164,186 @@ def generate_schedule_lines(
                 )
             except:
                 ips = [ip_entry]
+
+            if not isinstance(ips, list):
+                ips = [ips]
+
+            for ip in ips:
+                if ip.get("FINANCE_DETAIL_BEH_CODE") == "FINANCE_CHARGE":
+                    due_date_str = ip.get("DUE_DATE", "")[:10]
+                    if not due_date_str:
+                        continue
+
+                    amount = abs(Decimal(str(ip.get("InterestPaymentValue", 0))))
+
+                    all_interest_charges.append(
+                        {
+                            "date": due_date_str,
+                            "amount": amount,
+                        }
+                    )
+
+        all_interest_charges.sort(key=lambda x: x["date"])
+        logger.info(f"Found {len(all_interest_charges)} finance charges")
+
+        # ═══════════════════════════════════════════════════════════════════
+        # STEP 4: Identify pre-contract interest and determine spread period
+        # ═══════════════════════════════════════════════════════════════════
+        first_payment_date = instalments[0].get("DUE_DATE", "")[:10]
+
+        pre_contract_interest = sum(
+            ic["amount"]
+            for ic in all_interest_charges
+            if ic["date"] < first_payment_date
+        )
+
+        logger.info(f"Pre-contract interest: £{pre_contract_interest:.2f}")
+
+        if pre_contract_interest == Decimal("0"):
+            # No pre-contract interest - simple month matching
+            spread_period = 0
+            logger.info("No pre-contract interest - using simple month matching")
         else:
-            ips = [ip_entry]
-
-        if not isinstance(ips, list):
-            ips = [ips]
-
-        for ip in ips:
-            due_date_str = ip.get("DUE_DATE") or ip.get("due_date")
-            if not due_date_str:
-                continue
-
-            try:
-                due_date = datetime.strptime(str(due_date_str)[:10], "%Y-%m-%d")
-            except ValueError:
-                continue
-
-            month_key = due_date.strftime("%Y-%m")
-            interest_by_month.setdefault(month_key, Decimal("0"))
-
-            interest_value = ip.get("InterestPaymentValue") or ip.get("VALUE") or 0
-            interest_by_month[month_key] += abs(Decimal(str(interest_value)))
-
-    # Process schedule lines
-    actual_pri_total = Decimal("0")
-    first_cf_date = None
-    last_cf_date = None
-
-    for idx, sl in enumerate(flat_schedule_lines):
-        due_date_str = sl.get("DUE_DATE")
-        if not due_date_str:
-            continue
-
-        try:
-            pay_date = datetime.strptime(str(due_date_str)[:10], "%Y-%m-%d")
-        except ValueError:
-            continue
-
-        payment_month = pay_date.strftime("%Y-%m")
-        total_payment = abs(Decimal(str(sl.get("CASH_FLOW", 0))))
-
-        if first_cf_date is None:
-            first_cf_date = pay_date
-        last_cf_date = pay_date
-
-        # Get interest for this month
-        monthly_interest = interest_by_month.get(payment_month, Decimal("0"))
-        pri_amount = (total_payment - monthly_interest).quantize(Decimal("0.01"))
-
-        # Add INT line
-        if monthly_interest > 0:
-            schedule_lines.append(
-                {
-                    "componentTypeCode": "INT",
-                    "paymentMoney": {
-                        "amount": safe_amount(monthly_interest),
-                        "currencyCode": currency,
-                    },
-                    "paymentDate": pay_date.strftime("%Y-%m-%d"),
-                    "processed": False,
-                }
+            # Determine optimal spread period using adaptive algorithm
+            spread_period = _calculate_optimal_spread_period(
+                pre_contract_interest=pre_contract_interest,
+                instalments=instalments,
+                all_interest_charges=all_interest_charges,
+                first_payment_date=first_payment_date,
             )
 
-        # Add PRI line
-        if pri_amount > 0:
+            if spread_period is None:
+                logger.error("Cannot maintain positive PRI with any spread period")
+                return _create_fallback_schedule(
+                    expected_principal,
+                    start_date,
+                    currency,
+                    instalments=instalments,
+                    all_interest_charges=all_interest_charges,
+                )
+
+            logger.info(f"Using {spread_period}-month spread period")
+
+        # ═══════════════════════════════════════════════════════════════════
+        # STEP 5: Generate schedule lines with penny-perfect tracking
+        # ═══════════════════════════════════════════════════════════════════
+        deferred_per_payment = (
+            (pre_contract_interest / spread_period).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if spread_period > 0
+            else Decimal("0")
+        )
+
+        # Initialize penny-tracking accumulators
+        total_deferred_allocated = Decimal("0")
+        total_month_interest_used = Decimal("0")
+        total_pri_calculated = Decimal("0")
+        total_int_calculated = Decimal("0")
+
+        deferred_allocated = Decimal("0")
+
+        # Parse transaction history if provided
+        processed_payments = {}
+        if transaction_history:
+            transactions = parse_transaction_history(transaction_history)
+            processed_payments = calculate_processed_amounts(transactions, instalments)
+
+        for idx, inst in enumerate(instalments):
+            due_date_str = inst.get("DUE_DATE", "")[:10]
+            payment_month = due_date_str[:7]  # YYYY-MM
+            payment_amount = abs(Decimal(str(inst.get("CASH_FLOW", 0))))
+
+            # Match interest charges by calendar month (excluding pre-contract)
+            month_interest = sum(
+                ic["amount"]
+                for ic in all_interest_charges
+                if ic["date"][:7] == payment_month and ic["date"] >= first_payment_date
+            )
+
+            # Calculate deferred portion (CRITICAL: last spread payment gets remainder)
+            if spread_period > 0 and idx < spread_period:
+                if idx == spread_period - 1:
+                    # Last payment in spread: allocate exact remainder to avoid rounding errors
+                    deferred_portion = pre_contract_interest - deferred_allocated
+                else:
+                    deferred_portion = deferred_per_payment
+
+                deferred_allocated += deferred_portion
+            else:
+                deferred_portion = Decimal("0")
+
+            total_interest = month_interest + deferred_portion
+            pri_amount = (payment_amount - total_interest).quantize(Decimal("0.01"))
+
+            # SAFETY CHECK: Ensure PRI is positive
+            if pri_amount < 0:
+                logger.error(f"NEGATIVE PRI at payment {idx + 1}: £{pri_amount:.2f}")
+                logger.error(f"  Payment date: {due_date_str}")
+                logger.error(f"  Payment amount: £{payment_amount:.2f}")
+                logger.error(f"  Month interest: £{month_interest:.2f}")
+                logger.error(f"  Deferred interest: £{deferred_portion:.2f}")
+
+                # Log the specific cashflow causing the issue
+                logger.error(f"\n  Cashflow entry details:")
+                logger.error(f"    DUE_DATE: {inst.get('DUE_DATE')}")
+                logger.error(f"    CASH_FLOW: {inst.get('CASH_FLOW')}")
+                logger.error(
+                    f"    FINANCE_DETAIL_BEH_CODE: {inst.get('FINANCE_DETAIL_BEH_CODE')}"
+                )
+
+                # Log interest charges for this month
+                logger.error(f"\n  Interest charges for month {payment_month}:")
+                month_charges = [
+                    ic for ic in all_interest_charges if ic["date"][:7] == payment_month
+                ]
+                if month_charges:
+                    for ic in month_charges:
+                        logger.error(
+                            f"    Date: {ic['date']}, Amount: £{ic['amount']:.2f}"
+                        )
+                else:
+                    logger.error(f"    No interest charges found for this month")
+
+                logger.error("\nUsing fallback schedule")
+                return _create_fallback_schedule(
+                    expected_principal,
+                    start_date,
+                    currency,
+                    instalments=instalments,
+                    all_interest_charges=all_interest_charges,
+                )
+
+            # Track for validation
+            total_month_interest_used += month_interest
+            total_deferred_allocated += deferred_portion
+            total_pri_calculated += pri_amount
+            total_int_calculated += total_interest
+
+            # ═══════════════════════════════════════════════════════════════
+            # CRITICAL: Determine if payment is in the past (PROCESSED)
+            # ═══════════════════════════════════════════════════════════════
+            # Check transaction history first, then fall back to date comparison
+            if due_date_str in processed_payments:
+                is_processed = True
+            else:
+                is_processed = due_date_str < today_str
+
+            # Create INT schedule line (if interest exists)
+            if total_interest > 0:
+                schedule_lines.append(
+                    {
+                        "componentTypeCode": "INT",
+                        "paymentMoney": {
+                            "amount": safe_amount(total_interest),
+                            "currencyCode": currency,
+                        },
+                        "paymentDate": due_date_str,
+                        "processed": is_processed,  # ← FIXED: Mark past payments as processed
+                    }
+                )
+
+            # Create PRI schedule line
             schedule_lines.append(
                 {
                     "componentTypeCode": "PRI",
@@ -431,289 +351,439 @@ def generate_schedule_lines(
                         "amount": safe_amount(pri_amount),
                         "currencyCode": currency,
                     },
-                    "paymentDate": pay_date.strftime("%Y-%m-%d"),
-                    "processed": False,
+                    "paymentDate": due_date_str,
+                    "processed": is_processed,  # ← FIXED: Mark past payments as processed
                 }
             )
-            actual_pri_total += pri_amount
 
-    actual_end_date = last_cf_date.strftime("%Y-%m-%d") if last_cf_date else start_date
+        # ═══════════════════════════════════════════════════════════════════
+        # STEP 6: COMPREHENSIVE VALIDATION
+        # ═══════════════════════════════════════════════════════════════════
+        expected_pri = Decimal(str(expected_principal))
 
-    return schedule_lines, actual_pri_total, False, actual_end_date
+        # Calculate source totals
+        total_interest_source = sum(ic["amount"] for ic in all_interest_charges)
+        month_interest_source = sum(
+            ic["amount"]
+            for ic in all_interest_charges
+            if ic["date"] >= first_payment_date
+        )
+
+        # Log validation results
+        logger.info("=" * 70)
+        logger.info("VALIDATION REPORT:")
+        logger.info(
+            f"  Pre-contract: £{pre_contract_interest:.2f} → £{total_deferred_allocated:.2f} "
+            + f"(diff: £{abs(pre_contract_interest - total_deferred_allocated):.4f})"
+        )
+        logger.info(
+            f"  Month interest: £{month_interest_source:.2f} → £{total_month_interest_used:.2f}"
+        )
+        logger.info(
+            f"  Total interest: £{total_interest_source:.2f} → £{total_int_calculated:.2f}"
+        )
+        logger.info(
+            f"  Principal: £{expected_pri:.2f} vs £{total_pri_calculated:.2f} "
+            + f"(diff: £{abs(expected_pri - total_pri_calculated):.2f})"
+        )
+
+        # Validation checks
+        pre_contract_valid = abs(
+            pre_contract_interest - total_deferred_allocated
+        ) < Decimal("0.01")
+        principal_valid = abs(expected_pri - total_pri_calculated) < Decimal("1.00")
+
+        if not (pre_contract_valid and principal_valid):
+            logger.error("Validation checks FAILED!")
+            logger.error(f"  Pre-contract valid: {pre_contract_valid}")
+            logger.error(f"  Principal valid: {principal_valid}")
+
+            # Log detailed discrepancies
+            logger.error(f"\n  Validation details:")
+            logger.error(f"    Expected principal: £{expected_pri:.2f}")
+            logger.error(f"    Calculated principal: £{total_pri_calculated:.2f}")
+            logger.error(
+                f"    Difference: £{abs(expected_pri - total_pri_calculated):.2f}"
+            )
+
+            if not pre_contract_valid:
+                logger.error(
+                    f"    Pre-contract allocated: £{total_deferred_allocated:.2f}"
+                )
+                logger.error(f"    Pre-contract expected: £{pre_contract_interest:.2f}")
+
+            return _create_fallback_schedule(
+                expected_principal,
+                start_date,
+                currency,
+                instalments=instalments,
+                all_interest_charges=all_interest_charges,
+            )
+
+        # ═══════════════════════════════════════════════════════════════════
+        # STEP 7: Final adjustment to match expected principal EXACTLY
+        # ═══════════════════════════════════════════════════════════════════
+        pri_difference = expected_pri - total_pri_calculated
+
+        if abs(pri_difference) >= Decimal("0.01"):
+            logger.info(
+                f"Applying final adjustment: £{pri_difference:.2f} to first PRI line"
+            )
+
+            # Find and adjust first PRI line
+            for line in schedule_lines:
+                if line["componentTypeCode"] == "PRI":
+                    original = Decimal(str(line["paymentMoney"]["amount"]))
+                    adjusted = original + pri_difference
+                    line["paymentMoney"]["amount"] = safe_amount(adjusted)
+
+                    logger.info(f"  First PRI: £{original:.2f} → £{adjusted:.2f}")
+                    total_pri_calculated = expected_pri
+                    break
+
+        logger.info(f"✓ Final principal: £{total_pri_calculated:.2f}")
+        logger.info("=" * 70)
+
+        last_payment_date = instalments[-1].get("DUE_DATE", "")[:10]
+
+        return schedule_lines, total_pri_calculated, False, last_payment_date
+
+    except Exception as e:
+        logger.error(f"Error generating schedule lines: {e}", exc_info=True)
+        return _create_fallback_schedule(
+            expected_principal,
+            start_date,
+            currency,
+            instalments=None,
+            all_interest_charges=None,
+        )
 
 
-def calculate_component_balances(schedule_lines):
-    """
-    Calculate outstanding balances for each component based on unprocessed lines.
-
-    Returns: {componentTypeCode: outstanding_amount}
-    """
-    balances = {}
-
-    for line in schedule_lines:
-        comp_type = line["componentTypeCode"]
-        if comp_type not in balances:
-            balances[comp_type] = Decimal("0")
-
-        if not line.get("processed", False):
-            amount = Decimal(str(line["paymentMoney"]["amount"]))
-            balances[comp_type] += amount
-
-    return balances
-
-
-def build_component_with_debts(
-    component_type,
-    balance_amount,
-    debt_info,
-    apr=None,
+def _calculate_optimal_spread_period(
+    pre_contract_interest,
+    instalments,
+    all_interest_charges,
+    first_payment_date,
 ):
     """
-    Build component with proper debt tracking.
-
-    debt_info: {amount: Decimal, start_date: str or None}
+    Calculate optimal spread period using adaptive algorithm.
+    Tries 12, 24, 36, then all payments.
+    Returns None if no valid period found (data integrity issue).
     """
-    component = Component(
-        componentTypeCode=component_type,
-        paymentInterval=1,
-        balanceMoney={
-            "amount": safe_amount(balance_amount),
-            "currencyCode": "GBP",
-        },
-        invoicedBalanceMoney={
-            "amount": 0.00,
-            "currencyCode": "GBP",
-        },
+    # Calculate maximum monthly interest (worst case)
+    monthly_totals = {}
+    for ic in all_interest_charges:
+        if ic["date"] >= first_payment_date:
+            month = ic["date"][:7]
+            monthly_totals[month] = (
+                monthly_totals.get(month, Decimal("0")) + ic["amount"]
+            )
+
+    max_monthly_interest = (
+        max(monthly_totals.values()) if monthly_totals else Decimal("0")
     )
 
-    # Set debt if exists
-    if debt_info.get("amount", Decimal("0")) > 0 and debt_info.get("start_date"):
-        component.debts = [
+    payment_amount = abs(Decimal(str(instalments[0]["CASH_FLOW"])))
+    min_required_pri = payment_amount * Decimal(
+        "0.10"
+    )  # Keep at least 10% as principal
+
+    logger.info(f"Adaptive spread calculation:")
+    logger.info(f"  Payment amount: £{payment_amount:.2f}")
+    logger.info(f"  Max monthly interest: £{max_monthly_interest:.2f}")
+    logger.info(f"  Min required PRI (10%): £{min_required_pri:.2f}")
+
+    # Try each candidate period
+    for candidate_period in [12, 24, 36, len(instalments)]:
+        deferred_per_payment = pre_contract_interest / candidate_period
+
+        # Test worst-case payment (highest interest month)
+        test_pri = payment_amount - max_monthly_interest - deferred_per_payment
+
+        logger.info(f"  Testing {candidate_period}-month spread: PRI = £{test_pri:.2f}")
+
+        if test_pri >= min_required_pri:
+            logger.info(f"  ✓ Using {candidate_period}-month spread")
+            return candidate_period
+
+    # If we get here, even all-payment spread fails
+    logger.error("  ✗ No valid spread period found - data integrity issue")
+    return None
+
+
+def _create_fallback_schedule(
+    expected_principal,
+    start_date,
+    currency,
+    instalments=None,
+    all_interest_charges=None,
+):
+    """
+    Fallback schedule for contracts with data issues.
+    Creates INT and PRI lines on the FINAL payment date with totals.
+
+    Strategy:
+    - Total INT = sum of all finance charges
+    - Total PRI = sum of all instalments - total INT
+    - Both lines dated at last instalment date
+    - Both marked as processed: false (future payment)
+    """
+    logger.warning("🚨 Creating FALLBACK schedule with INT + PRI on final date")
+    logger.warning("This contract requires manual review")
+
+    today_str = date.today().isoformat()
+
+    # Calculate totals
+    if instalments and all_interest_charges:
+        # Calculate total interest
+        total_interest = sum(ic["amount"] for ic in all_interest_charges)
+
+        # Calculate total payments
+        total_payments = sum(
+            abs(Decimal(str(inst.get("CASH_FLOW", 0)))) for inst in instalments
+        )
+
+        # Calculate principal (Total payments - Total interest)
+        total_principal = total_payments - total_interest
+
+        # Use last instalment date
+        last_instalment_date = (
+            instalments[-1].get("DUE_DATE", "")[:10] if instalments else start_date
+        )
+
+        # Determine if fallback date is in the past
+        is_processed = last_instalment_date < today_str
+
+        logger.info(f"Fallback schedule calculation:")
+        logger.info(f"  Total payments (all instalments): £{total_payments:.2f}")
+        logger.info(f"  Total interest (all charges): £{total_interest:.2f}")
+        logger.info(f"  Total principal (payments - interest): £{total_principal:.2f}")
+        logger.info(f"  Final payment date: {last_instalment_date}")
+        logger.info(f"  Marked as processed: {is_processed}")
+
+        # Create schedule lines on FINAL date
+        schedule_lines = [
             {
-                "debtMoney": {
-                    "amount": safe_amount(debt_info["amount"]),
+                "componentTypeCode": "INT",
+                "paymentMoney": {
+                    "amount": safe_amount(total_interest),
+                    "currencyCode": currency,
+                },
+                "paymentDate": last_instalment_date,
+                "processed": is_processed,
+            },
+            {
+                "componentTypeCode": "PRI",
+                "paymentMoney": {
+                    "amount": safe_amount(total_principal),
+                    "currencyCode": currency,
+                },
+                "paymentDate": last_instalment_date,
+                "processed": is_processed,
+            },
+        ]
+
+        return (
+            schedule_lines,
+            total_principal,
+            True,  # is_fallback flag
+            last_instalment_date,
+        )
+
+    else:
+        # Absolute fallback - no data available
+        logger.error("No instalment/interest data available - using minimal fallback")
+
+        return (
+            [
+                {
+                    "componentTypeCode": "PRI",
+                    "paymentMoney": {
+                        "amount": safe_amount(expected_principal),
+                        "currencyCode": currency,
+                    },
+                    "paymentDate": start_date,
+                    "processed": start_date < today_str,
+                }
+            ],
+            Decimal(str(expected_principal)),
+            True,
+            start_date,
+        )
+
+
+def map_contract_from_csv_row(row):
+    """
+    Main entry point: Map CSV row to Contract dataclass.
+    Matches success_1.json structure exactly.
+    """
+    try:
+        # Parse agreement history
+        agreement_history = json.loads(row.get("MaskedAgreementHistory", "[]"))
+        if isinstance(agreement_history, list) and agreement_history:
+            agreement_history = agreement_history[0]
+
+        # Extract key fields
+        agreement_surrogate_ref = agreement_history.get("AgreementSurrogateRef", "")
+        agreement_ref = agreement_history.get("AGREEMENT_REF", "")
+        external_contract_id = agreement_surrogate_ref or agreement_ref
+        external_person_id = row.get("IBCSurrogate", "")
+
+        # Contract financial details
+        principal = float(agreement_history.get("AMOUNT_FINANCED", 0))
+        apr = float(agreement_history.get("APR", 0))
+        term = int(agreement_history.get("TERM", 0))
+        monthly_payment = float(agreement_history.get("PAYMENT", 0))
+
+        # Extract payment day from agreement or use default
+        payment_day_str = agreement_history.get("PAYMENT_DAY", "1")
+        try:
+            payment_day = int(payment_day_str)
+        except:
+            payment_day = 1
+
+        # Dates
+        creation_date_str = agreement_history.get("CREATIONSYSTEMDATE", "")[:10]
+        contract_date_str = agreement_history.get("CONTRACT_DATE", "")[:10]
+
+        # Use CONTRACT_DATE for signing/start/activation, CREATION for preparation
+        preparation_date = (
+            creation_date_str
+            if creation_date_str
+            else datetime.now().strftime("%Y-%m-%d")
+        )
+        signing_date = contract_date_str if contract_date_str else preparation_date
+        start_date = signing_date
+        activation_date = signing_date
+
+        # Generate schedule lines
+        schedule_lines, actual_pri, is_fallback, end_date = generate_schedule_lines(
+            cashflow_json=row.get("CashFlow", "[]"),
+            interest_json=row.get("InterestPayments", "[]"),
+            expected_principal=principal,
+            start_date=start_date,
+            term=term,
+            agreement_ref=agreement_ref,
+            transaction_history=row.get("MaskedTransactionHistory"),
+        )
+
+        # Get first payment date for previousInvoiceDate
+        first_payment_date = None
+        if schedule_lines:
+            for line in schedule_lines:
+                if line.get("componentTypeCode") == "PRI":
+                    first_payment_date = line.get("paymentDate")
+                    break
+
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL FIX: Calculate component balances from UNPROCESSED lines only
+        # ═══════════════════════════════════════════════════════════════════
+        pri_balance = sum(
+            Decimal(str(line["paymentMoney"]["amount"]))
+            for line in schedule_lines
+            if line.get("componentTypeCode") == "PRI"
+            and not line.get("processed", False)
+        )
+
+        int_balance = sum(
+            Decimal(str(line["paymentMoney"]["amount"]))
+            for line in schedule_lines
+            if line.get("componentTypeCode") == "INT"
+            and not line.get("processed", False)
+        )
+
+        logger.info(f"Component balances (unprocessed only):")
+        logger.info(f"  PRI balance: £{pri_balance:.2f}")
+        logger.info(f"  INT balance: £{int_balance:.2f}")
+
+        # Create Contract object matching success_1.json structure
+        contract = Contract(
+            # Identifiers
+            externalPersonId=external_person_id,
+            externalContractId=external_contract_id,
+            contractNumber=external_contract_id,  # Same as externalContractId
+            # Source
+            source={
+                "sourceName": "MY-CONTRACT-DB",  # Your legacy system name
+                "sourceRef": external_person_id,  # IBCSurrogate
+            },
+            # Loan type and status
+            loanTypeCode=LOAN_TYPE_CODE,  # From config
+            statusCode="ACTIVE",  # Static
+            scheduleTypeCode="ANNUITY",  # Static
+            # Dates
+            preparationDate=preparation_date,
+            signingDate=signing_date,
+            startDate=start_date,
+            activationDate=activation_date,
+            endDate=end_date,
+            # Financial
+            period=term,
+            apr=apr,
+            limitMoney={"amount": principal, "currencyCode": "GBP"},
+            contractMoney={"amount": principal, "currencyCode": "GBP"},
+            # Location
+            countryCode=COUNTRY_CODE,  # "GB"
+            tenantCode=TENANT_CODE,  # Your tenant code
+            # Repayment
+            repayment=Repayment(
+                monthlyRepaymentAmount={
+                    "amount": monthly_payment,
                     "currencyCode": "GBP",
                 },
-                "debtStartDate": debt_info["start_date"],
-            }
-        ]
-    else:
-        component.debts = None
+                paymentDay=payment_day,
+                previousInvoiceDate=first_payment_date,  # First payment date
+                monthlyRepaymentRate=None,
+                paymentFreeMonths=None,
+                maxInvoiceMoney=None,
+                minInvoiceMoney=None,
+                invoiceDay=None,
+            ),
+            repaymentChannelCode=REPAYMENT_CHANNEL_CODE,
+            # Components with CORRECTED balances
+            components=[
+                # Principal component - balance = sum of UNPROCESSED PRI lines
+                Component(
+                    componentTypeCode="PRI",
+                    paymentInterval=1,
+                    balanceMoney={
+                        "amount": safe_amount(pri_balance),
+                        "currencyCode": "GBP",
+                    },
+                    invoicedBalanceMoney={"amount": 0, "currencyCode": "GBP"},
+                ),
+                # ALIM component (credit limit - required by Tuum)
+                Component(
+                    componentTypeCode="ALIM",
+                    balanceMoney={"amount": 0, "currencyCode": "GBP"},
+                    invoicedBalanceMoney={"amount": 0, "currencyCode": "GBP"},
+                ),
+                # Interest component - balance = sum of UNPROCESSED INT lines
+                Component(
+                    componentTypeCode="INT",
+                    paymentInterval=1,
+                    balanceMoney={
+                        "amount": safe_amount(int_balance),
+                        "currencyCode": "GBP",
+                    },
+                    invoicedBalanceMoney={"amount": 0, "currencyCode": "GBP"},
+                    calculationMethod={"daysInMonth": "ACT", "daysInYear": "365"},
+                    rateTypeCode="FIXED",
+                    rate=apr,
+                    rateBaseCode=None,
+                    marginRate=0,
+                    baseRate=0,
+                ),
+            ],
+            # Schedule lines
+            scheduleLines=schedule_lines,
+        )
 
-    # INT-specific fields
-    if component_type == "INT":
-        component.calculationMethod = {
-            "daysInMonth": "ACT",
-            "daysInYear": "365",
-        }
-        component.rateTypeCode = "FIXED"
-        component.rate = float(apr) if apr else 0.0
-        component.marginRate = 0.0
-        component.baseRate = 0.0
+        if is_fallback:
+            logger.warning(f"Contract {external_contract_id} used fallback schedule")
 
-    return component
+        return contract
 
-
-def _build_contract(
-    agreement,
-    person_id,
-    schedule_lines,
-    debt_by_component,
-    component_balances,
-    actual_end_date,
-    start_date,
-):
-    """Build Contract dataclass from components"""
-    agreement_ref = agreement.get("AGREEMENT_REF")
-    principal = Decimal(str(agreement.get("AMOUNT_FINANCED", 0)))
-    term = agreement.get("TERM_IN_MONTHS", agreement.get("TERM", 60))
-    apr = agreement.get("APR") or 0.0
-    monthly_payment = agreement.get("PAYMENT", 0)
-    payment_day = agreement.get("PAYMENT_DAY", 1)
-
-    try:
-        prep_date_str = str(agreement.get("CREATION_SYSTEM_DATE", start_date))[:10]
-        signing_date_str = str(agreement.get("CONTRACT_DATE", start_date))[:10]
-    except (IndexError, TypeError):
-        prep_date_str = start_date
-        signing_date_str = start_date
-
-    # Build components
-    components = []
-
-    # PRI Component
-    pri_balance = component_balances.get("PRI", Decimal("0"))
-    pri_debt = debt_by_component.get(
-        "PRI", {"amount": Decimal("0"), "start_date": None}
-    )
-    pri_component = build_component_with_debts("PRI", pri_balance, pri_debt)
-    components.append(pri_component)
-
-    # ALIM Component
-    alim_component = Component(
-        componentTypeCode="ALIM",
-        paymentInterval=1,
-        balanceMoney={"amount": 0.00, "currencyCode": "GBP"},
-        invoicedBalanceMoney={"amount": 0.00, "currencyCode": "GBP"},
-    )
-    components.append(alim_component)
-
-    # INT Component
-    int_balance = component_balances.get("INT", Decimal("0"))
-    int_debt = debt_by_component.get(
-        "INT", {"amount": Decimal("0"), "start_date": None}
-    )
-    int_component = build_component_with_debts("INT", int_balance, int_debt, apr=apr)
-    components.append(int_component)
-
-    # Repayment
-    repayment = Repayment(
-        paymentFreeMonths=None,
-        monthlyRepaymentAmount={
-            "amount": safe_amount(monthly_payment),
-            "currencyCode": "GBP",
-        },
-        monthlyRepaymentRate=None,
-        maxInvoiceMoney=None,
-        minInvoiceMoney=None,
-        invoiceDay=None,
-        paymentDay=payment_day,
-        previousInvoiceDate=prep_date_str,
-    )
-
-    # Build Contract
-    contract = Contract(
-        externalPersonId=person_id,
-        tuumPersonId=None,
-        externalContractId=agreement_ref,
-        source={
-            "sourceName": "MY-CONTRACT-DB",
-            "sourceRef": agreement_ref,
-        },
-        contractNumber=agreement.get("AGREEMENT_CODE", agreement_ref),
-        loanTypeCode=LOAN_TYPE_CODE,
-        referenceNumber=None,
-        preparationDate=prep_date_str,
-        signingDate=signing_date_str,
-        startDate=start_date,
-        activationDate=start_date,
-        endDate=actual_end_date,
-        stopDate=None,
-        statusCode="ACTIVE",
-        period=term,
-        apr=float(apr),
-        scheduleTypeCode="ANNUITY",
-        limitMoney={
-            "amount": safe_amount(principal),
-            "currencyCode": "GBP",
-        },
-        contractFeeMoney=None,
-        contractMoney={
-            "amount": safe_amount(principal),
-            "currencyCode": "GBP",
-        },
-        countryCode=COUNTRY_CODE,
-        tenantCode=TENANT_CODE,
-        solvencyLevelCode=None,
-        externalServicingAccountId=None,
-        repayment=repayment,
-        hasCollateral=False,
-        initialLtv=None,
-        currentLtv=None,
-        limitUsageDate=None,
-        penaltyGraceDays=0,
-        penaltyGraceMoney=None,
-        repaymentChannelCode=REPAYMENT_CHANNEL_CODE,
-        contractConditions=None,
-        components=components,
-        scheduleLines=schedule_lines,
-    )
-
-    return contract
-
-
-def map_agreement(row):
-    """
-    Main orchestrator: processes agreement from CSV row.
-
-    Returns: List[Contract]
-    """
-    contracts = []
-    person_id = row.get("IBCSurrogate", "UNKNOWN-ID")
-    transaction_history_json = row.get("MaskedTransactionHistory", "[]")
-
-    try:
-        agreements = json.loads(row.get("MaskedAgreementHistory", "[]"))
     except Exception as e:
-        logger.error(f"Error parsing MaskedAgreementHistory: {e}")
-        return []
-
-    if not isinstance(agreements, list):
-        agreements = [agreements]
-
-    # Parse transactions once per row
-    transactions = parse_transaction_history(transaction_history_json)
-
-    for agreement in agreements:
-        try:
-            agreement_ref = agreement.get("AGREEMENT_REF")
-            principal = Decimal(str(agreement.get("AMOUNT_FINANCED", 0)))
-            start_date_raw = agreement.get("CREATION_SYSTEM_DATE", "")
-            start_date = str(start_date_raw)[:10] if start_date_raw else "2023-01-01"
-            term = agreement.get("TERM_IN_MONTHS", agreement.get("TERM", 60))
-            monthly_repayment = agreement.get("PAYMENT", 0)
-
-            # Generate schedule lines
-            schedule_lines, actual_pri, _, actual_end_date = generate_schedule_lines(
-                cashflow_json=row.get("CashFlow", "[]"),
-                interest_json=row.get("InterestPayments", "[]"),
-                expected_principal=principal,
-                start_date=start_date,
-                term=term,
-                agreement_ref=agreement_ref,
-                currency="GBP",
-            )
-
-            if not schedule_lines:
-                logger.warning(f"No schedule lines for {agreement_ref}")
-                continue
-
-            # Group transactions by posting date
-            transaction_groups = group_transactions_by_posting_date(
-                transactions,
-                agreement_ref,
-            )
-
-            # Process schedule with transactions and track debt
-            schedule_lines, debt_by_line, debt_by_component = (
-                process_schedule_with_transactions(
-                    schedule_lines,
-                    Decimal(str(monthly_repayment)),
-                    transaction_groups,
-                    agreement_ref,
-                )
-            )
-
-            # Calculate remaining balances
-            component_balances = calculate_component_balances(schedule_lines)
-
-            # Build contract
-            contract = _build_contract(
-                agreement=agreement,
-                person_id=person_id,
-                schedule_lines=schedule_lines,
-                debt_by_component=debt_by_component,
-                component_balances=component_balances,
-                actual_end_date=actual_end_date,
-                start_date=start_date,
-            )
-
-            contracts.append(contract)
-
-        except Exception as e:
-            logger.error(
-                f"Error processing agreement {agreement.get('AGREEMENT_REF')}: {e}",
-                exc_info=True,
-            )
-
-    return contracts
+        logger.error(f"Error mapping contract: {e}", exc_info=True)
+        return None

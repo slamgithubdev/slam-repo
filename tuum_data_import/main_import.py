@@ -16,7 +16,6 @@ from urllib3.util import Retry
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
 fh = logging.FileHandler("app.log", encoding="utf-8")
 formatter = logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s")
 fh.setFormatter(formatter)
@@ -70,7 +69,6 @@ def authenticate_employee(auth_url, username, password, tenant_code):
         )
 
         logger.info(f"Authentication response status: {response.status_code}")
-
         try:
             data = response.json()
             logger.info(f"Authentication response JSON: {json.dumps(data, indent=2)}")
@@ -89,7 +87,6 @@ def authenticate_employee(auth_url, username, password, tenant_code):
 
         logger.info("Employee authenticated successfully.")
         return token
-
     except requests.RequestException as e:
         logger.error(f"Error during authentication: {e}")
         raise e
@@ -174,7 +171,6 @@ def import_single_file(
         try:
             response_data = response.json()
             import_process_id = response_data.get("data", {}).get("importProcessId")
-
             if import_process_id:
                 check_import_status(
                     session, import_process_id, import_base_url, tenant_code
@@ -188,7 +184,6 @@ def import_single_file(
                 logger.info(f"✓ Successfully imported {os.path.basename(file_path)}")
             else:
                 logger.error(f"✗ Import failed for {os.path.basename(file_path)}")
-
         except json.JSONDecodeError:
             logger.error(f"Failed to parse response JSON: {response.text}")
 
@@ -233,7 +228,6 @@ def check_import_status(session, import_process_id, base_url, tenant_code):
         except json.JSONDecodeError as e:
             logger.error(f"Failed parsing status response JSON: {e}")
             logger.info(f"Raw status response text: {status_response.text}")
-
     except requests.RequestException as e:
         logger.error(f"Error requesting import status: {e}")
 
@@ -249,7 +243,7 @@ def get_all_chunk_files(config):
 
     Returns:
         dict: Mapping of data keys to lists of file paths.
-                {"persons": [list of files], "contracts": [list of files]}
+              {"persons": [list of files], "contracts": [list of files]}
     """
     files = {"persons": [], "contracts": []}
 
@@ -293,20 +287,18 @@ def get_target_files(config):
         dict: Mapping of data keys to file paths.
     """
     target_num = config.get("TARGET_FILE")
-
     if not target_num:
         logger.info("TARGET_FILE not set; using auto-discovery mode")
         return None  # Signal to use get_all_chunk_files instead
 
     logger.info(f"TARGET_FILE mode: targeting chunk {target_num}")
-
     files = {}
 
     person_folder = config.get("PERSON_FILE_PATH", "./chunks_persons")
     contract_folder = config.get("CONTRACT_FILE_PATH", "./chunks_contracts")
 
     # New naming: persons_0001.json instead of person_1.json
-    person_path = os.path.join(person_folder, f"persons_{target_num:04d}.json")
+    person_path = os.path.join(person_folder, f"persons_{int(target_num):04d}.json")
     if os.path.isfile(person_path):
         files["persons"] = person_path
         logger.info(f"Found persons file: {person_path}")
@@ -314,7 +306,9 @@ def get_target_files(config):
         logger.warning(f"Persons chunk file not found: {person_path}")
 
     # New naming: contracts_0001.json instead of contract_1.json
-    contract_path = os.path.join(contract_folder, f"contracts_{target_num:04d}.json")
+    contract_path = os.path.join(
+        contract_folder, f"contracts_{int(target_num):04d}.json"
+    )
     if os.path.isfile(contract_path):
         files["contracts"] = contract_path
         logger.info(f"Found contracts file: {contract_path}")
@@ -343,7 +337,6 @@ def main():
     # ═══════════════════════════════════════════════════════════════════════
     # IMPORT FLAGS
     # ═══════════════════════════════════════════════════════════════════════
-
     import_persons = config.get("IMPORT_PERSONS", "false").lower() == "true"
     import_contracts = config.get("IMPORT_CONTRACTS", "true").lower() == "true"
 
@@ -373,7 +366,6 @@ def main():
         exit(1)
 
     session = create_session_with_token(token)
-
     import_base_url = config.get("DATA_IMPORT_BASE_URL")
     source_name = config.get("SOURCE_NAME")
     tenant_code = config.get("LEAF_TENANT_CODE")
@@ -390,9 +382,7 @@ def main():
     # ═══════════════════════════════════════════════════════════════════════
     # FILTER BY IMPORT FLAGS
     # ═══════════════════════════════════════════════════════════════════════
-
     filtered_files = {}
-
     if import_persons and "persons" in target_files and target_files["persons"]:
         filtered_files["persons"] = target_files["persons"]
 
@@ -406,26 +396,35 @@ def main():
     logger.info(f"Files to import: {list(filtered_files.keys())}")
 
     # ═══════════════════════════════════════════════════════════════════════
-    # IMPORT PROCESS - PERSONS FIRST, THEN CONTRACTS
+    # IMPORT PROCESS - PERSONS FIRST, THEN CONTRACTS (DRY REFACTORED)
     # ═══════════════════════════════════════════════════════════════════════
-
     logger.info("\n" + "=" * 70)
     logger.info("IMPORT PROCESS - PERSONS FIRST, THEN CONTRACTS")
     logger.info("=" * 70)
 
     import_count = 0
 
-    # ✓ PERSONS ALWAYS IMPORTED FIRST (if enabled)
-    if "persons" in filtered_files:
-        logger.info("\n[PHASE 1] IMPORTING PERSONS")
+    # Define the import order (persons must be first!)
+    IMPORT_ORDER = ["persons", "contracts"]
+    PHASE_LABELS = {
+        "persons": "[PHASE 1] IMPORTING PERSONS",
+        "contracts": "[PHASE 2] IMPORTING CONTRACTS",
+    }
+
+    # ✓ Loop through each data type in order
+    for data_type in IMPORT_ORDER:
+        if data_type not in filtered_files:
+            continue
+
+        logger.info(f"\n{PHASE_LABELS[data_type]}")
         logger.info("-" * 70)
 
-        file_paths = filtered_files["persons"]
+        file_paths = filtered_files[data_type]
         files_to_import = file_paths if isinstance(file_paths, list) else [file_paths]
 
         for file_path in files_to_import:
             try:
-                dynamic_source_ref = generate_dynamic_source_ref("persons")
+                dynamic_source_ref = generate_dynamic_source_ref(data_type)
                 import_single_file(
                     session,
                     import_base_url,
@@ -433,35 +432,11 @@ def main():
                     dynamic_source_ref,
                     tenant_code,
                     file_path,
-                    "persons",
+                    data_type,
                 )
                 import_count += 1
             except Exception as e:
-                logger.error(f"Error processing persons file {file_path}: {e}")
-
-    # ✓ CONTRACTS IMPORTED AFTER PERSONS
-    if "contracts" in filtered_files:
-        logger.info("\n[PHASE 2] IMPORTING CONTRACTS")
-        logger.info("-" * 70)
-
-        file_paths = filtered_files["contracts"]
-        files_to_import = file_paths if isinstance(file_paths, list) else [file_paths]
-
-        for file_path in files_to_import:
-            try:
-                dynamic_source_ref = generate_dynamic_source_ref("contracts")
-                import_single_file(
-                    session,
-                    import_base_url,
-                    source_name,
-                    dynamic_source_ref,
-                    tenant_code,
-                    file_path,
-                    "contracts",
-                )
-                import_count += 1
-            except Exception as e:
-                logger.error(f"Error processing contracts file {file_path}: {e}")
+                logger.error(f"Error processing {data_type} file {file_path}: {e}")
 
     logger.info("\n" + "=" * 70)
     logger.info(f"Import process complete. {import_count} files imported.")

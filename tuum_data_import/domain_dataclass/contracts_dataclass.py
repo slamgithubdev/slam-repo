@@ -6,67 +6,81 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class Component:
+    """
+    Component (PRI, INT, ALIM, etc.) for Tuum contract.
+    Matches Tuum API component schema.
+    """
+
     componentTypeCode: str
+    balanceMoney: dict
+    invoicedBalanceMoney: dict
     paymentInterval: Optional[int] = None
-    balanceMoney: dict = field(default_factory=dict)
-    invoicedBalanceMoney: dict = field(default_factory=dict)
     calculationMethod: Optional[dict] = None
     rateTypeCode: Optional[str] = None
     rate: Optional[float] = None
     rateBaseCode: Optional[str] = None
     marginRate: Optional[int] = None
     baseRate: Optional[int] = None
-    debts: Optional[List[Dict[str, Any]]] = None  # NEW: Debt tracking
 
 
 @dataclass
 class Repayment:
-    paymentFreeMonths: Optional[int]
+    """
+    Repayment configuration for Tuum contract.
+    Matches Tuum API repayment schema.
+    """
+
     monthlyRepaymentAmount: dict
-    monthlyRepaymentRate: Optional[float]
-    maxInvoiceMoney: Optional[float]
-    minInvoiceMoney: Optional[float]
-    invoiceDay: Optional[int]
     paymentDay: int
-    previousInvoiceDate: str
+    previousInvoiceDate: Optional[str] = None
+    monthlyRepaymentRate: Optional[float] = None
+    paymentFreeMonths: Optional[int] = None
+    maxInvoiceMoney: Optional[dict] = None
+    minInvoiceMoney: Optional[dict] = None
+    invoiceDay: Optional[int] = None
 
 
 @dataclass
 class Contract:
+    """
+    Tuum Contract dataclass matching success_1.json schema.
+    All required fields for Tuum contract import API.
+    """
+
+    # Required identifiers
     externalPersonId: str
-    tuumPersonId: Optional[str]
     externalContractId: str
-    source: dict
     contractNumber: str
+
+    # Source information
+    source: dict  # {"sourceName": "...", "sourceRef": "..."}
+
+    # Loan configuration
     loanTypeCode: str
-    referenceNumber: Optional[str]
+    statusCode: str
+    scheduleTypeCode: str
+
+    # Dates
     preparationDate: str
     signingDate: str
     startDate: str
     activationDate: str
     endDate: str
-    stopDate: Optional[str]
-    statusCode: str
+
+    # Financial details
     period: int
-    apr: Optional[float]
-    scheduleTypeCode: str
-    limitMoney: dict
-    contractFeeMoney: Optional[dict]
-    contractMoney: dict
+    apr: float
+    limitMoney: dict  # {"amount": float, "currencyCode": "GBP"}
+    contractMoney: dict  # {"amount": float, "currencyCode": "GBP"}
+
+    # Location and tenant
     countryCode: str
     tenantCode: str
-    solvencyLevelCode: Optional[str]
-    externalServicingAccountId: Optional[str]
+
+    # Repayment configuration
     repayment: Repayment
-    hasCollateral: bool
-    initialLtv: Optional[float]
-    currentLtv: Optional[float]
-    limitUsageDate: Optional[str]
-    penaltyGraceDays: Optional[int]
-    penaltyGraceMoney: Optional[float]
     repaymentChannelCode: str
-    contractConditions: Optional[str]
+
+    # Components and schedule
     components: List[Component]
-    coBorrowers: Optional[List] = None
-    scheduleLines: List[dict] = field(default_factory=list)
-    customFields: Optional[dict] = None
+    scheduleLines: List[Dict[str, Any]] = field(default_factory=list)

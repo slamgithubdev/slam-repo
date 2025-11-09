@@ -18,13 +18,12 @@ from domain_config.contracts_config import (
 )
 from domain_config.persons_config import CHUNK_SIZE as PERSON_CHUNK_SIZE
 from domain_config.persons_config import PERSON_CHUNK_FOLDER
-from domain_mapper.contracts_mapper import map_agreement
+from domain_mapper.contracts_mapper import map_contract_from_csv_row  # ✅ FIXED
 from domain_mapper.persons_mapper import map_person
 
 # ═══════════════════════════════════════════════════════════════════════
 # LOGGING SETUP
 # ═══════════════════════════════════════════════════════════════════════
-
 logger = logging.getLogger(__name__)
 logger.setLevel(LOG_LEVEL)
 
@@ -104,7 +103,6 @@ def parse_csv_persons(csv_filepath):
     try:
         with open(csv_filepath, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-
             for row_idx, row in enumerate(reader):
                 try:
                     person_id = row.get("IBCSurrogate")
@@ -114,14 +112,12 @@ def parse_csv_persons(csv_filepath):
                         continue
 
                     person = map_person(row)
-
                     if person:
                         processed_ids.add(person_id)
                         person_dict = make_json_serializable(asdict(person))
                         current_chunk.append(person_dict)
                         all_persons.append(person)
-
-                        logger.debug(f"  ✓ Person: {person.externalPersonId}")
+                        logger.debug(f" ✓ Person: {person.externalPersonId}")
 
                         if len(current_chunk) >= PERSON_CHUNK_SIZE:
                             _write_persons_chunk(
@@ -163,36 +159,36 @@ def parse_csv_contracts(csv_filepath):
     try:
         with open(csv_filepath, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-
             for row_idx, row in enumerate(reader):
                 try:
                     logger.info(
                         f"\n[Row {row_idx}] Processing: {row.get('IBCSurrogate')}"
                     )
 
-                    mapped_contracts = map_agreement(row)
+                    # ✅ FIXED: Use map_contract_from_csv_row which returns single contract
+                    contract = map_contract_from_csv_row(row)
+                    mapped_contracts = [contract] if contract else []
 
                     for contract in mapped_contracts:
                         contract_dict = make_json_serializable(asdict(contract))
 
                         try:
                             validate_pri_balance(contract_dict)
-                            logger.info(f"  ✓ Validation passed")
+                            logger.info(f" ✓ Validation passed")
                         except ValueError as ve:
-                            logger.error(f"  ✗ Validation failed: {ve}")
+                            logger.error(f" ✗ Validation failed: {ve}")
                             continue
 
                         current_chunk.append(contract_dict)
                         all_contracts.append(contract)
+                        logger.info(f" ✓ Contract added: {contract.externalContractId}")
 
-                        logger.info(
-                            f"  ✓ Contract added: {contract.externalContractId}"
-                        )
-
-                    if len(current_chunk) >= CONTRACT_CHUNK_SIZE:
-                        _write_contracts_chunk(chunk_folder, chunk_index, current_chunk)
-                        chunk_index += 1
-                        current_chunk = []
+                        if len(current_chunk) >= CONTRACT_CHUNK_SIZE:
+                            _write_contracts_chunk(
+                                chunk_folder, chunk_index, current_chunk
+                            )
+                            chunk_index += 1
+                            current_chunk = []
 
                 except Exception as e:
                     logger.error(f"Error on row {row_idx}: {e}", exc_info=True)
@@ -214,17 +210,13 @@ def parse_csv_contracts(csv_filepath):
 def _write_persons_chunk(chunk_folder, chunk_index, chunk_data):
     """Write persons chunk to JSON file"""
     chunk_file = chunk_folder / f"persons_{chunk_index:04d}.json"
-
     try:
         output = {"persons": chunk_data}
-
         with open(chunk_file, "w", encoding="utf-8") as cf:
             json.dump(output, cf, indent=2, default=str)
-
         logger.info(
             f"✓ Persons chunk written: {chunk_file} ({len(chunk_data)} persons)"
         )
-
     except Exception as e:
         logger.error(f"Error writing persons chunk {chunk_index}: {e}", exc_info=True)
 
@@ -232,17 +224,13 @@ def _write_persons_chunk(chunk_folder, chunk_index, chunk_data):
 def _write_contracts_chunk(chunk_folder, chunk_index, chunk_data):
     """Write contracts chunk to JSON file"""
     chunk_file = chunk_folder / f"contracts_{chunk_index:04d}.json"
-
     try:
         output = {"contracts": chunk_data}
-
         with open(chunk_file, "w", encoding="utf-8") as cf:
             json.dump(output, cf, indent=2, default=str)
-
         logger.info(
             f"✓ Contracts chunk written: {chunk_file} ({len(chunk_data)} contracts)"
         )
-
     except Exception as e:
         logger.error(f"Error writing contracts chunk {chunk_index}: {e}", exc_info=True)
 
