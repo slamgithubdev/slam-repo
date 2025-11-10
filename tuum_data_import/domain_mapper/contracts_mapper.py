@@ -16,6 +16,7 @@ from domain_config.contracts_config import (
     TENANT_CODE,
 )
 from domain_dataclass.contracts_dataclass import Component, Contract, Repayment
+from utils.utils import replace_prefix_with_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -629,6 +630,9 @@ def map_contract_from_csv_row(row):
         external_contract_id = agreement_surrogate_ref or agreement_ref
         external_person_id = row.get("IBCSurrogate", "")
 
+        transformed_external_id = replace_prefix_with_timestamp(external_person_id)
+        transformed_contract_id = replace_prefix_with_timestamp(external_contract_id)
+
         # Contract financial details
         principal = float(agreement_history.get("AMOUNT_FINANCED", 0))
         apr = float(agreement_history.get("APR", 0))
@@ -692,20 +696,20 @@ def map_contract_from_csv_row(row):
             and not line.get("processed", False)
         )
 
-        logger.info(f"Component balances (unprocessed only):")
+        logger.info("Component balances (unprocessed only):")
         logger.info(f"  PRI balance: £{pri_balance:.2f}")
         logger.info(f"  INT balance: £{int_balance:.2f}")
 
         # Create Contract object matching success_1.json structure
         contract = Contract(
             # Identifiers
-            externalPersonId=external_person_id,
-            externalContractId=external_contract_id,
-            contractNumber=external_contract_id,  # Same as externalContractId
+            externalPersonId=transformed_external_id,
+            externalContractId=transformed_contract_id,
+            contractNumber=transformed_contract_id,  # Same as externalContractId
             # Source
             source={
                 "sourceName": "MY-CONTRACT-DB",  # Your legacy system name
-                "sourceRef": external_person_id,  # IBCSurrogate
+                "sourceRef": transformed_external_id,  # IBCSurrogate
             },
             # Loan type and status
             loanTypeCode=LOAN_TYPE_CODE,  # From config

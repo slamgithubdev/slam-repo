@@ -22,6 +22,7 @@ from domain_dataclass.persons_dataclass import (
     Source,
     ValidityRange,
 )
+from utils.utils import replace_prefix_with_timestamp
 
 
 def iso_now_utc():
@@ -72,10 +73,11 @@ def map_address_list(address_json_str):
 
 def map_identification_numbers(ext_id):
     id_num = ext_id[-12:] if ext_id and len(ext_id) >= 12 else generate_id_number()
+    transformed_id_num = replace_prefix_with_timestamp(id_num)
     validity = parse_validity_dates()
     return [
         IdentificationNumber(
-            idNumber=id_num,
+            idNumber=transformed_id_num,
             idCountryCode=COUNTRY_CODE,
             primary=True,
             validityRange=validity,
@@ -104,6 +106,7 @@ def map_employment_history(employment_json_str):
 
 def map_person(row):
     ext_id = row.get("IBCSurrogate") or "UNKNOWN-ID"
+    transformed_ext_id = replace_prefix_with_timestamp(ext_id)
 
     person_info = {}
     contact_info = {}
@@ -124,7 +127,7 @@ def map_person(row):
     )
 
     person = Person(
-        externalPersonId=ext_id,
+        externalPersonId=transformed_ext_id,
         source=Source(sourceName=SOURCE_NAME_PERSON, sourceRef=ext_id),
         personTypeCode=PERSON_TYPE_CODE,
         givenName=person_info.get("given_name", ""),

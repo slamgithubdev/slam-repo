@@ -164,12 +164,15 @@ def import_single_file(
             f"{import_base_url}/api/v1/import/sample", headers=headers, json=body
         )
 
+        print(f"HERE I AM: {response.json()}")
+
         logger.info(
             f"Response status: {response.status_code} for {os.path.basename(file_path)}"
         )
 
         try:
             response_data = response.json()
+            print(response_data)
             import_process_id = response_data.get("data", {}).get("importProcessId")
             if import_process_id:
                 check_import_status(
