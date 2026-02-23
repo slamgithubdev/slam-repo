@@ -1,0 +1,43 @@
+{
+  "lookups": [
+    {
+      "entity_name": "COLLATERAL.ASSET",
+      "lookup_type_code": "CARAVAN_TYPE",
+      "description": "Caravan Type",
+      "values": [
+        {
+          "code": "MOTOR",
+          "label": "Motor"
+        },
+        {
+          "code": "STATIC",
+          "label": "Static"
+        },
+        {
+          "code": "TOURING",
+          "label": "Touring"
+        }
+      ]
+    },
+    {
+      "entity_name": "COLLATERAL.ASSET",
+      "lookup_type_code": "MOTORCYCLE_TYPE",
+      "description": "Motorcycle Type",
+      "values": [
+        {
+          "code": "STANDARD",
+          "label": "Standard"
+        },
+        {
+          "code": "QUAD",
+          "label": "Quad"
+        },
+        {
+          "code": "TRICYCLE",
+          "label": "Tricycle"
+        }
+      ]
+    }
+  ],
+  "custom_fields": []
+}

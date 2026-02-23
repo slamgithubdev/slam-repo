@@ -1,0 +1,72 @@
+{
+  "field_sets": [
+    {
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "field_set_id": "marketing_preference",
+      "name": "marketing preference"
+    }
+  ],
+  "fields": [
+    {
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "field_set_id": "marketing_preference",
+      "field_id": "preference_email_v1",
+      "name": "preference - email",
+      "value_type": "BOOLEAN",
+      "required": false,
+      "unique": false
+    },
+    {
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "field_set_id": "marketing_preference",
+      "field_id": "preference_sms_v1",
+      "name": "preference - sms",
+      "value_type": "BOOLEAN",
+      "required": false,
+      "unique": false
+    },
+    {
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "field_set_id": "marketing_preference",
+      "field_id": "preference_telephone_v1",
+      "name": "preference - telephone",
+      "value_type": "BOOLEAN",
+      "required": false,
+      "unique": false
+    },
+    {
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "field_set_id": "marketing_preference",
+      "field_id": "3rd_party_email_v1",
+      "name": "3rd party - email",
+      "value_type": "BOOLEAN",
+      "required": false,
+      "unique": false
+    },
+    {
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "field_set_id": "marketing_preference",
+      "field_id": "3rd_party_sms_v1",
+      "name": "3rd party - sms",
+      "value_type": "BOOLEAN",
+      "required": false,
+      "unique": false
+    },
+    {
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "field_set_id": "marketing_preference",
+      "field_id": "3rd_party_telephone_v1",
+      "name": "3rd party - telephone",
+      "value_type": "BOOLEAN",
+      "required": false,
+      "unique": false
+    }
+  ]
+}

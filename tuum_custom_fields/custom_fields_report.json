@@ -1,0 +1,447 @@
+{
+  "report_metadata": {
+    "generated_at": "2026-01-07T14:37:09.443379",
+    "total_operations": 7,
+    "successful": 7,
+    "failed": 0
+  },
+  "summary": {
+    "field_sets": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "fields": {
+      "total": 6,
+      "successful": 6,
+      "failed": 0
+    }
+  },
+  "field_sets_created": [
+    {
+      "field_set_id": "marketing_preference",
+      "name": "marketing preference",
+      "entity": "PERSON.PERSON",
+      "api_module": "PERSON",
+      "status": "SUCCESS",
+      "timestamp": "2026-01-07T14:37:09.057839",
+      "response": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "entityName": "PERSON.PERSON",
+          "fieldSetId": "marketing_preference",
+          "name": "marketing preference",
+          "sortOrder": 12
+        }
+      },
+      "error": null
+    }
+  ],
+  "fields_created": [
+    {
+      "field_id": "preference_email_v1",
+      "name": "preference - email",
+      "entity": "PERSON.PERSON",
+      "api_module": "PERSON",
+      "status": "SUCCESS",
+      "timestamp": "2026-01-07T14:37:09.147895",
+      "response": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "preference_email_v1",
+          "name": "preference - email",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 1,
+          "entityFilterValues": null
+        }
+      },
+      "error": null
+    },
+    {
+      "field_id": "preference_sms_v1",
+      "name": "preference - sms",
+      "entity": "PERSON.PERSON",
+      "api_module": "PERSON",
+      "status": "SUCCESS",
+      "timestamp": "2026-01-07T14:37:09.212857",
+      "response": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "preference_sms_v1",
+          "name": "preference - sms",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 2,
+          "entityFilterValues": null
+        }
+      },
+      "error": null
+    },
+    {
+      "field_id": "preference_telephone_v1",
+      "name": "preference - telephone",
+      "entity": "PERSON.PERSON",
+      "api_module": "PERSON",
+      "status": "SUCCESS",
+      "timestamp": "2026-01-07T14:37:09.268186",
+      "response": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "preference_telephone_v1",
+          "name": "preference - telephone",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 3,
+          "entityFilterValues": null
+        }
+      },
+      "error": null
+    },
+    {
+      "field_id": "3rd_party_email_v1",
+      "name": "3rd party - email",
+      "entity": "PERSON.PERSON",
+      "api_module": "PERSON",
+      "status": "SUCCESS",
+      "timestamp": "2026-01-07T14:37:09.332877",
+      "response": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "3rd_party_email_v1",
+          "name": "3rd party - email",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 4,
+          "entityFilterValues": null
+        }
+      },
+      "error": null
+    },
+    {
+      "field_id": "3rd_party_sms_v1",
+      "name": "3rd party - sms",
+      "entity": "PERSON.PERSON",
+      "api_module": "PERSON",
+      "status": "SUCCESS",
+      "timestamp": "2026-01-07T14:37:09.388036",
+      "response": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "3rd_party_sms_v1",
+          "name": "3rd party - sms",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 5,
+          "entityFilterValues": null
+        }
+      },
+      "error": null
+    },
+    {
+      "field_id": "3rd_party_telephone_v1",
+      "name": "3rd party - telephone",
+      "entity": "PERSON.PERSON",
+      "api_module": "PERSON",
+      "status": "SUCCESS",
+      "timestamp": "2026-01-07T14:37:09.443379",
+      "response": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "3rd_party_telephone_v1",
+          "name": "3rd party - telephone",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 6,
+          "entityFilterValues": null
+        }
+      },
+      "error": null
+    }
+  ],
+  "operations_by_module": {
+    "PERSON": {
+      "total": 7,
+      "field_sets": 1,
+      "fields": 6,
+      "successful": 7,
+      "failed": 0
+    }
+  },
+  "full_change_history": [
+    {
+      "timestamp": "2026-01-07T14:37:09.057839",
+      "operation": "CREATE",
+      "resource_type": "FIELD_SET",
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "resource_id": "marketing_preference",
+      "resource_name": "marketing preference",
+      "status": "SUCCESS",
+      "response_data": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "entityName": "PERSON.PERSON",
+          "fieldSetId": "marketing_preference",
+          "name": "marketing preference",
+          "sortOrder": 12
+        }
+      },
+      "error_message": null
+    },
+    {
+      "timestamp": "2026-01-07T14:37:09.147895",
+      "operation": "CREATE",
+      "resource_type": "FIELD",
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "resource_id": "preference_email_v1",
+      "resource_name": "preference - email",
+      "status": "SUCCESS",
+      "response_data": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "preference_email_v1",
+          "name": "preference - email",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 1,
+          "entityFilterValues": null
+        }
+      },
+      "error_message": null
+    },
+    {
+      "timestamp": "2026-01-07T14:37:09.212857",
+      "operation": "CREATE",
+      "resource_type": "FIELD",
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "resource_id": "preference_sms_v1",
+      "resource_name": "preference - sms",
+      "status": "SUCCESS",
+      "response_data": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "preference_sms_v1",
+          "name": "preference - sms",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 2,
+          "entityFilterValues": null
+        }
+      },
+      "error_message": null
+    },
+    {
+      "timestamp": "2026-01-07T14:37:09.268186",
+      "operation": "CREATE",
+      "resource_type": "FIELD",
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "resource_id": "preference_telephone_v1",
+      "resource_name": "preference - telephone",
+      "status": "SUCCESS",
+      "response_data": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "preference_telephone_v1",
+          "name": "preference - telephone",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 3,
+          "entityFilterValues": null
+        }
+      },
+      "error_message": null
+    },
+    {
+      "timestamp": "2026-01-07T14:37:09.332877",
+      "operation": "CREATE",
+      "resource_type": "FIELD",
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "resource_id": "3rd_party_email_v1",
+      "resource_name": "3rd party - email",
+      "status": "SUCCESS",
+      "response_data": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "3rd_party_email_v1",
+          "name": "3rd party - email",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 4,
+          "entityFilterValues": null
+        }
+      },
+      "error_message": null
+    },
+    {
+      "timestamp": "2026-01-07T14:37:09.388036",
+      "operation": "CREATE",
+      "resource_type": "FIELD",
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "resource_id": "3rd_party_sms_v1",
+      "resource_name": "3rd party - sms",
+      "status": "SUCCESS",
+      "response_data": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "3rd_party_sms_v1",
+          "name": "3rd party - sms",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 5,
+          "entityFilterValues": null
+        }
+      },
+      "error_message": null
+    },
+    {
+      "timestamp": "2026-01-07T14:37:09.443379",
+      "operation": "CREATE",
+      "resource_type": "FIELD",
+      "api_module": "PERSON",
+      "entity_name": "PERSON.PERSON",
+      "resource_id": "3rd_party_telephone_v1",
+      "resource_name": "3rd party - telephone",
+      "status": "SUCCESS",
+      "response_data": {
+        "errors": null,
+        "validationErrors": null,
+        "data": {
+          "fieldId": "3rd_party_telephone_v1",
+          "name": "3rd party - telephone",
+          "fieldSetId": "marketing_preference",
+          "entityName": "PERSON.PERSON",
+          "valueType": "BOOLEAN",
+          "unique": false,
+          "required": false,
+          "active": true,
+          "copyFromEntityName": null,
+          "copyFromFieldId": null,
+          "activityCode": null,
+          "lookupEntityName": null,
+          "lookupTypeCode": null,
+          "sortOrder": 6,
+          "entityFilterValues": null
+        }
+      },
+      "error_message": null
+    }
+  ]
+}

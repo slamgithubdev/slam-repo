@@ -15,6 +15,7 @@ class ValueType(Enum):
     DATETIME = "DATETIME"
     BOOLEAN = "BOOLEAN"
     JSON = "JSON"
+    LOOKUP = "LOOKUP"
 
 
 @dataclass
@@ -47,6 +48,7 @@ class FieldDefinition:
     required: bool = False
     active: bool = True
     activity_code: Optional[str] = None
+    lookup_type_code: Optional[str] = None
     api_module: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -61,6 +63,7 @@ class FieldDefinition:
             "required": self.required,
             "active": self.active,
             "activity_code": self.activity_code,
+            "lookup_type_code": self.lookup_type_code,
             "api_module": self.api_module.name if self.api_module else None
         }
 

@@ -1,0 +1,25 @@
+{
+  "lookups": [],
+  "custom_fields": [
+    {
+      "field_set": {
+        "api_module": "LOAN",
+        "entity_name": "LOAN.CONTRACT_HEADER",
+        "field_set_id": "testing_v0",
+        "name": "testing v0"
+      },
+      "fields": [
+        {
+          "api_module": "LOAN",
+          "entity_name": "LOAN.CONTRACT_HEADER",
+          "field_set_id": "testing_v0",
+          "field_id": "field_id_v0",
+          "name": "field id v0",
+          "value_type": "JSON",
+          "required": false,
+          "unique": false
+        }
+      ]
+    }
+  ]
+}
